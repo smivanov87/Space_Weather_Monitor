@@ -1,1059 +1,505 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>Live Space Weather Dashboard</title>
-
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <style>
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            min-height: 100vh;
-
-            font-family:
-                Arial,
-                Helvetica,
-                sans-serif;
-
-            background:
-                radial-gradient(
-                    circle at top,
-                    #14233b 0%,
-                    #08111f 45%,
-                    #040912 100%
-                );
-
-            color: #dce8f7;
-        }
-
-
-        .container {
-            width: min(1100px, 94%);
-            margin: 0 auto;
-            padding: 30px 0 50px;
-        }
-
-
-        /* =========================================
-           HEADER
-        ========================================= */
-
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-
-        header h1 {
-            margin: 0 0 8px;
-
-            font-size: 32px;
-            font-weight: 700;
-
-            color: #ffffff;
-
-            letter-spacing: 0.5px;
-        }
-
-
-        header p {
-            margin: 0;
-
-            color: #8194ad;
-
-            font-size: 14px;
-        }
-
-
-        /* =========================================
-           STATUS
-        ========================================= */
-
-        .status {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-
-            gap: 8px;
-
-            margin-top: 15px;
-
-            font-size: 13px;
-            color: #8da1bb;
-        }
-
-
-        .status-dot {
-            width: 9px;
-            height: 9px;
-
-            border-radius: 50%;
-
-            background: #39d98a;
-
-            box-shadow:
-                0 0 10px
-                rgba(57, 217, 138, 0.8);
-        }
-
-
-        /* =========================================
-           ERROR
-        ========================================= */
-
-        #dataError {
-            display: none;
-
-            margin: 0 0 20px;
-            padding: 12px 16px;
-
-            border-radius: 10px;
-
-            background:
-                rgba(255, 70, 70, 0.12);
-
-            border:
-                1px solid
-                rgba(255, 70, 70, 0.35);
-
-            color: #ff8585;
-
-            font-size: 13px;
-        }
-
-
-        /* =========================================
-           CARDS
-        ========================================= */
-
-        .grid {
-            display: grid;
-
-            grid-template-columns:
-                repeat(3, 1fr);
-
-            gap: 18px;
-
-            margin-bottom: 20px;
-        }
-
-
-        .card {
-            padding: 22px;
-
-            border-radius: 16px;
-
-            background:
-                rgba(14, 28, 47, 0.82);
-
-            border:
-                1px solid
-                rgba(120, 160, 205, 0.12);
-
-            box-shadow:
-                0 12px 35px
-                rgba(0, 0, 0, 0.25);
-        }
-
-
-        .card-title {
-            margin-bottom: 10px;
-
-            color: #71829b;
-
-            font-size: 12px;
-
-            text-transform: uppercase;
-
-            letter-spacing: 1px;
-        }
-
-
-        .value {
-            font-size: 34px;
-
-            font-weight: 700;
-
-            color: #ffffff;
-        }
-
-
-        .unit {
-            margin-left: 4px;
-
-            color: #71829b;
-
-            font-size: 13px;
-        }
-
-
-        .blue {
-            color: #48b7ff;
-        }
-
-
-        .green {
-            color: #39d98a;
-        }
-
-
-        .orange {
-            color: #ffb454;
-        }
-
-
-        /* =========================================
-           MAIN GRID
-        ========================================= */
-
-        .main-grid {
-            display: grid;
-
-            grid-template-columns:
-                1fr 1.5fr;
-
-            gap: 20px;
-
-            margin-bottom: 20px;
-        }
-
-
-        /* =========================================
-           CLOCK
-        ========================================= */
-
-        .clock-card {
-            min-height: 440px;
-
-            display: flex;
-
-            flex-direction: column;
-
-            align-items: center;
-
-            justify-content: center;
-        }
-
-
-        .clock-title {
-            margin-bottom: 20px;
-
-            color: #9aabc2;
-
-            font-size: 15px;
-        }
-
-
-        .clock {
-            position: relative;
-
-            width: 280px;
-            height: 280px;
-
-            border-radius: 50%;
-
-            background:
-                radial-gradient(
-                    circle,
-                    #102238 0%,
-                    #091522 65%,
-                    #060d17 100%
-                );
-
-            border:
-                2px solid
-                rgba(72, 183, 255, 0.25);
-
-            box-shadow:
-                0 0 35px
-                rgba(72, 183, 255, 0.08);
-        }
-
-
-        .clock::before {
-            content: "";
-
-            position: absolute;
-
-            left: 50%;
-            top: 50%;
-
-            width: 6px;
-            height: 6px;
-
-            transform:
-                translate(-50%, -50%);
-
-            border-radius: 50%;
-
-            background: #ffffff;
-
-            box-shadow:
-                0 0 10px
-                rgba(255,255,255,0.8);
-
-            z-index: 5;
-        }
-
-
-        .direction {
-            position: absolute;
-
-            color: #7287a1;
-
-            font-size: 13px;
-
-            font-weight: 700;
-        }
-
-
-        .north {
-            top: 14px;
-            left: 50%;
-
-            transform:
-                translateX(-50%);
-
-            color: #48b7ff;
-        }
-
-
-        .east {
-            right: 14px;
-            top: 50%;
-
-            transform:
-                translateY(-50%);
-        }
-
-
-        .south {
-            bottom: 14px;
-            left: 50%;
-
-            transform:
-                translateX(-50%);
-        }
-
-
-        .west {
-            left: 14px;
-            top: 50%;
-
-            transform:
-                translateY(-50%);
-        }
-
-
-        .needle {
-            position: absolute;
-
-            left: 50%;
-            top: 50%;
-
-            width: 3px;
-            height: 105px;
-
-            transform-origin:
-                50% 100%;
-
-            transform:
-                translate(-50%, -100%)
-                rotate(0deg);
-
-            background:
-                linear-gradient(
-                    to top,
-                    #ffffff,
-                    #48b7ff
-                );
-
-            border-radius: 5px;
-
-            box-shadow:
-                0 0 12px
-                rgba(72, 183, 255, 0.8);
-
-            z-index: 3;
-        }
-
-
-        .clock-angle {
-            margin-top: 20px;
-
-            font-size: 28px;
-
-            font-weight: 700;
-
-            color: #48b7ff;
-        }
-
-
-        .clock-angle span {
-            font-size: 13px;
-
-            color: #71829b;
-        }
-
-
-        /* =========================================
-           CHART
-        ========================================= */
-
-        .chart-card {
-            min-height: 440px;
-        }
-
-
-        .chart-header {
-            display: flex;
-
-            align-items: center;
-
-            justify-content: space-between;
-
-            margin-bottom: 15px;
-        }
-
-
-        .chart-title {
-            color: #ffffff;
-
-            font-size: 17px;
-
-            font-weight: 600;
-        }
-
-
-        .chart-kp {
-            font-size: 28px;
-
-            font-weight: 700;
-
-            color: #48b7ff;
-        }
-
-
-        .chart-container {
-            position: relative;
-
-            height: 340px;
-        }
-
-
-        /* =========================================
-           FOOTER
-        ========================================= */
-
-        .footer {
-            text-align: center;
-
-            margin-top: 25px;
-
-            color: #596b82;
-
-            font-size: 12px;
-
-            line-height: 1.7;
-        }
-
-
-        .footer strong {
-            color: #71829b;
-        }
-
-
-        /* =========================================
-           RESPONSIVE
-        ========================================= */
-
-        @media (max-width: 800px) {
-
-            .grid {
-                grid-template-columns:
-                    1fr;
-            }
-
-
-            .main-grid {
-                grid-template-columns:
-                    1fr;
-            }
-
-
-            header h1 {
-                font-size: 26px;
-            }
-
-
-            .clock {
-                width: 250px;
-                height: 250px;
-            }
-
-        }
-
-
-        @media (max-width: 450px) {
-
-            .container {
-                width: 92%;
-                padding-top: 20px;
-            }
-
-
-            .card {
-                padding: 18px;
-            }
-
-
-            .clock {
-                width: 220px;
-                height: 220px;
-            }
-
-
-            .needle {
-                height: 80px;
-            }
-
-        }
-
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>NOAA Live Space Weather</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #050b14;
+    color: #e8f1ff;
+    font-family: Arial, sans-serif;
+}
+
+.container {
+    width: 95%;
+    max-width: 1100px;
+    margin: auto;
+    padding: 30px 0;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.subtitle {
+    text-align: center;
+    color: #8192aa;
+    margin-bottom: 30px;
+}
+
+.status {
+    padding: 12px;
+    margin-bottom: 20px;
+    background: #0d1828;
+    border: 1px solid #1b3049;
+    border-radius: 10px;
+}
+
+.status.ok {
+    color: #42e6a4;
+}
+
+.status.error {
+    color: #ff7070;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
+
+.card {
+    background: #0c1726;
+    border: 1px solid #1a2c42;
+    border-radius: 14px;
+    padding: 22px;
+}
+
+.label {
+    color: #71839c;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+}
+
+.value {
+    font-size: 35px;
+    font-weight: bold;
+    color: #4bbcff;
+}
+
+.unit {
+    color: #71839c;
+}
+
+.main {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.clock-wrapper {
+    text-align: center;
+}
+
+.clock {
+    position: relative;
+    width: 260px;
+    height: 260px;
+    margin: 20px auto;
+    border-radius: 50%;
+    border: 2px solid #24415e;
+    background: #091422;
+}
+
+.direction {
+    position: absolute;
+    color: #71839c;
+    font-weight: bold;
+}
+
+.n {
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #4bbcff;
+}
+
+.e {
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.s {
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.w {
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.needle {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 4px;
+    height: 100px;
+    background: #4bbcff;
+    transform-origin: 50% 100%;
+    transform: translate(-50%, -100%) rotate(0deg);
+    border-radius: 5px;
+    box-shadow: 0 0 15px #4bbcff;
+}
+
+.center {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: white;
+    border-radius: 50%;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.angle {
+    font-size: 28px;
+    color: #4bbcff;
+    font-weight: bold;
+}
+
+.chart-box {
+    height: 350px;
+}
+
+.raw {
+    margin-top: 20px;
+}
+
+.raw pre {
+    background: #02060c;
+    border: 1px solid #18283b;
+    border-radius: 10px;
+    padding: 15px;
+    overflow: auto;
+    max-height: 250px;
+    color: #9fb4cd;
+    font-size: 11px;
+}
+
+@media(max-width: 750px) {
+
+    .grid,
+    .main {
+        grid-template-columns: 1fr;
+    }
+
+    .clock {
+        width: 220px;
+        height: 220px;
+    }
+}
+
+</style>
 </head>
-
 
 <body>
 
 <div class="container">
 
-    <!-- =========================================
-         HEADER
-    ========================================== -->
+<h1>Live Space Weather</h1>
 
-    <header>
+<div class="subtitle">
+NOAA Solar Wind & Geomagnetic Conditions
+</div>
 
-        <h1>
-            Live Space Weather
-        </h1>
+<div id="status" class="status">
+Connecting to NOAA...
+</div>
 
-        <p>
-            Real-time solar wind and geomagnetic conditions
-        </p>
 
-        <div class="status">
+<div class="grid">
 
-            <div class="status-dot"></div>
+<div class="card">
+<div class="label">IMF By</div>
+<span id="by" class="value">--</span>
+<span class="unit">nT</span>
+</div>
 
-            <span>
-                Live NOAA data
-            </span>
+<div class="card">
+<div class="label">IMF Bz</div>
+<span id="bz" class="value">--</span>
+<span class="unit">nT</span>
+</div>
 
-        </div>
+<div class="card">
+<div class="label">IMF Bt</div>
+<span id="bt" class="value">--</span>
+<span class="unit">nT</span>
+</div>
 
-    </header>
+</div>
 
 
-    <!-- =========================================
-         ERROR MESSAGE
-    ========================================== -->
+<div class="main">
 
-    <div id="dataError"></div>
 
+<div class="card clock-wrapper">
 
-    <!-- =========================================
-         MAGNETIC FIELD VALUES
-    ========================================== -->
+<div class="label">
+IMF Clock Angle
+</div>
 
-    <div class="grid">
+<div class="clock">
 
+<div class="direction n">N</div>
+<div class="direction e">E</div>
+<div class="direction s">S</div>
+<div class="direction w">W</div>
 
-        <!-- By -->
+<div
+id="needle"
+class="needle">
+</div>
 
-        <div class="card">
+<div class="center"></div>
 
-            <div class="card-title">
-                IMF By
-            </div>
+</div>
 
-            <div>
+<div class="angle">
+<span id="angle">--</span>°
+</div>
 
-                <span
-                    id="by"
-                    class="value blue"
-                >
-                    --
-                </span>
+<div
+id="magTime"
+style="color:#71839c;margin-top:10px;font-size:12px;">
+Waiting...
+</div>
 
-                <span class="unit">
-                    nT
-                </span>
+</div>
 
-            </div>
 
-        </div>
+<div class="card">
 
+<div style="
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:15px;
+">
 
-        <!-- Bz -->
+<div>
 
-        <div class="card">
+<div class="label">
+Geomagnetic Activity
+</div>
 
-            <div class="card-title">
-                IMF Bz
-            </div>
+<div style="
+font-size:18px;
+font-weight:bold;
+">
+Kp Index
+</div>
 
-            <div>
+</div>
 
-                <span
-                    id="bz"
-                    class="value"
-                >
-                    --
-                </span>
+<div
+id="kp"
+style="
+font-size:32px;
+font-weight:bold;
+color:#4bbcff;
+">
+--
+</div>
 
-                <span class="unit">
-                    nT
-                </span>
+</div>
 
-            </div>
+<div class="chart-box">
 
-        </div>
+<canvas id="kpChart"></canvas>
 
+</div>
 
-        <!-- Bt -->
+<div
+id="kpTime"
+style="
+color:#71839c;
+font-size:12px;
+margin-top:8px;
+">
+Waiting...
+</div>
 
-        <div class="card">
+</div>
 
-            <div class="card-title">
-                IMF Bt
-            </div>
+</div>
 
-            <div>
 
-                <span
-                    id="bt"
-                    class="value green"
-                >
-                    --
-                </span>
+<div class="raw">
 
-                <span class="unit">
-                    nT
-                </span>
+<div class="card">
 
-            </div>
+<div class="label">
+Diagnostic Information
+</div>
 
-        </div>
+<pre id="diagnostic">
+Waiting for NOAA response...
+</pre>
 
+</div>
 
-    </div>
-
-
-    <!-- =========================================
-         CLOCK + CHART
-    ========================================== -->
-
-    <div class="main-grid">
-
-
-        <!-- =====================================
-             IMF CLOCK
-        ====================================== -->
-
-        <div class="card clock-card">
-
-            <div class="clock-title">
-                IMF Clock Angle
-            </div>
-
-
-            <div class="clock">
-
-                <div class="direction north">
-                    N
-                </div>
-
-                <div class="direction east">
-                    E
-                </div>
-
-                <div class="direction south">
-                    S
-                </div>
-
-                <div class="direction west">
-                    W
-                </div>
-
-
-                <div
-                    id="clockNeedle"
-                    class="needle"
-                ></div>
-
-            </div>
-
-
-            <div class="clock-angle">
-
-                <span id="clockAngle">
-                    --
-                </span>
-
-                <span>
-                    °
-                </span>
-
-            </div>
-
-
-            <div
-                id="lastUpdate"
-                style="
-                    margin-top: 8px;
-                    color: #596b82;
-                    font-size: 11px;
-                "
-            >
-                Waiting for data...
-            </div>
-
-        </div>
-
-
-        <!-- =====================================
-             KP CHART
-        ====================================== -->
-
-        <div class="card chart-card">
-
-            <div class="chart-header">
-
-                <div>
-
-                    <div class="card-title">
-                        Geomagnetic Activity
-                    </div>
-
-                    <div class="chart-title">
-                        Kp Index
-                    </div>
-
-                </div>
-
-
-                <div
-                    id="currentKp"
-                    class="chart-kp"
-                >
-                    --
-                </div>
-
-            </div>
-
-
-            <div class="chart-container">
-
-                <canvas
-                    id="kpChart"
-                ></canvas>
-
-            </div>
-
-
-            <div
-                id="kpUpdated"
-                style="
-                    margin-top: 8px;
-                    color: #596b82;
-                    font-size: 11px;
-                "
-            >
-                Waiting for data...
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <!-- =========================================
-         SECONDARY BZ DISPLAY
-    ========================================== -->
-
-    <div class="card">
-
-        <div class="card-title">
-            Current Southward IMF Bz
-        </div>
-
-        <div>
-
-            <span
-                id="bz2"
-                class="value orange"
-            >
-                --
-            </span>
-
-            <span class="unit">
-                nT
-            </span>
-
-        </div>
-
-    </div>
-
-
-    <!-- =========================================
-         FOOTER
-    ========================================== -->
-
-    <div class="footer">
-
-        Data provided by
-        <strong>NOAA Space Weather Prediction Center</strong>.
-
-        <br>
-
-        Magnetic field and Kp data refresh automatically
-        every 60 seconds.
-
-    </div>
+</div>
 
 </div>
 
 
 <script>
 
-    /*
-    ==================================================
-    NOAA DATA URLS
-    ==================================================
-    */
+const MAG_URL =
+"https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json";
 
-    const MAG_URL =
-        "https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json";
+const KP_URL =
+"https://services.swpc.noaa.gov/json/planetary_k_index_1m.json";
 
-    const KP_URL =
-        "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json";
+let chart = null;
 
 
-    let kpChart = null;
+/* =========================================
+   STATUS
+========================================= */
+
+function status(message, error = false) {
+
+    const element =
+        document.getElementById("status");
+
+    element.textContent = message;
+
+    element.className =
+        error
+        ? "status error"
+        : "status ok";
+}
 
 
-    /*
-    ==================================================
-    FETCH JSON
-    ==================================================
-    */
+/* =========================================
+   DIAGNOSTIC
+========================================= */
 
-    async function getJSON(url) {
+function diagnostic(data) {
 
-        const response =
-            await fetch(
-                url,
-                {
-                    cache: "no-store"
-                }
+    const element =
+        document.getElementById("diagnostic");
+
+    try {
+
+        element.textContent =
+            JSON.stringify(
+                data,
+                null,
+                2
             );
 
+    } catch {
 
-        if (!response.ok) {
+        element.textContent =
+            String(data);
 
-            throw new Error(
-                `HTTP ${response.status}: ${response.statusText}`
-            );
-
-        }
+    }
+}
 
 
-        return await response.json();
+/* =========================================
+   FETCH
+========================================= */
+
+async function getData(url) {
+
+    const response =
+        await fetch(
+            url,
+            {
+                cache: "no-store"
+            }
+        );
+
+    if (!response.ok) {
+
+        throw new Error(
+            "HTTP " +
+            response.status
+        );
 
     }
 
+    return await response.json();
+}
 
-    /*
-    ==================================================
-    GET VALUE
-    ==================================================
-    */
 
-    function getValue(
-        record,
-        names
-    ) {
+/* =========================================
+   MAGNETIC DATA
+========================================= */
 
-        for (
-            const name of names
+async function loadMagnetic() {
+
+    try {
+
+        const data =
+            await getData(MAG_URL);
+
+        diagnostic(data);
+
+        console.log(
+            "MAG NOAA:",
+            data
+        );
+
+
+        if (
+            !Array.isArray(data) ||
+            data.length === 0
         ) {
 
-            if (
-                record[name] !== undefined &&
-                record[name] !== null &&
-                record[name] !== ""
-            ) {
-
-                return record[name];
-
-            }
+            throw new Error(
+                "NOAA magnetic response is empty"
+            );
 
         }
 
 
-        return null;
+        /*
+        Look through the response
+        for an actual object containing
+        magnetic field values.
+        */
 
-    }
-
-
-    /*
-    ==================================================
-    ERROR DISPLAY
-    ==================================================
-    */
-
-    function showError(message) {
-
-        console.error(message);
+        let record = null;
 
 
-        const errorElement =
-            document.getElementById(
-                "dataError"
-            );
+        for (
+            let i = data.length - 1;
+            i >= 0;
+            i--
+        ) {
 
-
-        if (errorElement) {
-
-            errorElement.textContent =
-                message;
-
-            errorElement.style.display =
-                "block";
-
-        }
-
-    }
-
-
-    /*
-    ==================================================
-    LOAD MAGNETIC DATA
-    ==================================================
-    */
-
-    async function loadMagneticData() {
-
-        try {
-
-            const data =
-                await getJSON(
-                    MAG_URL
-                );
-
-
-            console.log(
-                "NOAA magnetic data:",
-                data
-            );
+            const item = data[i];
 
 
             if (
-                !Array.isArray(data) ||
-                data.length === 0
+                item &&
+                typeof item === "object" &&
+                !Array.isArray(item)
             ) {
 
-                throw new Error(
-                    "No magnetic data returned"
-                );
-
-            }
-
-
-            let latest = null;
-
-
-            /*
-            Find newest valid record.
-            */
-
-            for (
-                let i = data.length - 1;
-                i >= 0;
-                i--
-            ) {
-
-                const record =
-                    data[i];
-
-
                 if (
-                    !record ||
-                    typeof record !== "object"
+                    item.Bz !== undefined ||
+                    item.By !== undefined ||
+                    item.Bt !== undefined
                 ) {
 
-                    continue;
-
-                }
-
-
-                const by =
-                    Number(
-                        getValue(
-                            record,
-                            [
-                                "By",
-                                "by"
-                            ]
-                        )
-                    );
-
-
-                const bz =
-                    Number(
-                        getValue(
-                            record,
-                            [
-                                "Bz",
-                                "bz"
-                            ]
-                        )
-                    );
-
-
-                const bt =
-                    Number(
-                        getValue(
-                            record,
-                            [
-                                "Bt",
-                                "bt"
-                            ]
-                        )
-                    );
-
-
-                if (
-                    Number.isFinite(by) ||
-                    Number.isFinite(bz) ||
-                    Number.isFinite(bt)
-                ) {
-
-                    latest =
-                        record;
+                    record = item;
 
                     break;
 
@@ -1061,730 +507,467 @@
 
             }
 
-
-            if (!latest) {
-
-                throw new Error(
-                    "No valid magnetic field values found"
-                );
-
-            }
+        }
 
 
-            /*
-            Get values.
-            */
+        /*
+        If NOAA returned header/rows,
+        convert those rows.
+        */
 
-            const by =
-                Number(
-                    getValue(
-                        latest,
-                        [
-                            "By",
-                            "by"
-                        ]
-                    )
-                );
+        if (!record && Array.isArray(data[0])) {
+
+            const headers = data[0];
 
 
-            const bz =
-                Number(
-                    getValue(
-                        latest,
-                        [
-                            "Bz",
-                            "bz"
-                        ]
-                    )
-                );
-
-
-            const bt =
-                Number(
-                    getValue(
-                        latest,
-                        [
-                            "Bt",
-                            "bt"
-                        ]
-                    )
-                );
-
-
-            console.log(
-                "Latest magnetic values:",
-                {
-                    By: by,
-                    Bz: bz,
-                    Bt: bt
-                }
-            );
-
-
-            /*
-            -------------------------------
-            By
-            -------------------------------
-            */
-
-            const byElement =
-                document.getElementById(
-                    "by"
-                );
-
-
-            if (
-                byElement &&
-                Number.isFinite(by)
+            for (
+                let i = data.length - 1;
+                i >= 1;
+                i--
             ) {
 
-                byElement.textContent =
-                    by.toFixed(1);
+                const row = data[i];
 
-            }
+                const obj = {};
 
+                headers.forEach(
+                    (header, index) => {
 
-            /*
-            -------------------------------
-            Bz
-            -------------------------------
-            */
+                        obj[header] =
+                            row[index];
 
-            const bzElement =
-                document.getElementById(
-                    "bz"
+                    }
                 );
-
-
-            const bz2Element =
-                document.getElementById(
-                    "bz2"
-                );
-
-
-            if (
-                Number.isFinite(bz)
-            ) {
-
-                if (bzElement) {
-
-                    bzElement.textContent =
-                        bz.toFixed(1);
-
-                }
-
-
-                if (bz2Element) {
-
-                    bz2Element.textContent =
-                        bz.toFixed(1);
-
-                }
-
-            }
-
-
-            /*
-            -------------------------------
-            Bt
-            -------------------------------
-            */
-
-            const btElement =
-                document.getElementById(
-                    "bt"
-                );
-
-
-            if (
-                btElement &&
-                Number.isFinite(bt)
-            ) {
-
-                btElement.textContent =
-                    bt.toFixed(1);
-
-            }
-
-
-            /*
-            -------------------------------
-            CLOCK ANGLE
-            -------------------------------
-            */
-
-            if (
-                Number.isFinite(by) &&
-                Number.isFinite(bz)
-            ) {
-
-                let angle =
-                    Math.atan2(
-                        by,
-                        bz
-                    ) *
-                    180 /
-                    Math.PI;
-
-
-                if (angle < 0) {
-
-                    angle += 360;
-
-                }
-
-
-                updateClock(angle);
-
-            }
-
-
-            /*
-            -------------------------------
-            TIME
-            -------------------------------
-            */
-
-            const timestamp =
-                getValue(
-                    latest,
-                    [
-                        "time_tag",
-                        "timestamp",
-                        "time"
-                    ]
-                );
-
-
-            const updateElement =
-                document.getElementById(
-                    "lastUpdate"
-                );
-
-
-            if (
-                updateElement &&
-                timestamp
-            ) {
-
-                const date =
-                    new Date(
-                        timestamp
-                    );
 
 
                 if (
-                    !Number.isNaN(
-                        date.getTime()
-                    )
+                    obj.Bz !== undefined ||
+                    obj.By !== undefined ||
+                    obj.Bt !== undefined
                 ) {
 
-                    updateElement.textContent =
-                        "Updated " +
-                        date.toUTCString();
+                    record = obj;
+
+                    break;
 
                 }
 
             }
 
+        }
 
-        } catch (error) {
 
-            showError(
-                "Magnetic data error: " +
-                error.message
+        if (!record) {
+
+            throw new Error(
+                "Could not locate By/Bz/Bt in NOAA response"
             );
 
         }
 
-    }
+
+        const by =
+            Number(record.By);
+
+        const bz =
+            Number(record.Bz);
+
+        const bt =
+            Number(record.Bt);
 
 
-    /*
-    ==================================================
-    UPDATE CLOCK
-    ==================================================
-    */
-
-    function updateClock(angle) {
-
-        const needle =
-            document.getElementById(
-                "clockNeedle"
-            );
+        console.log(
+            "MAG RECORD:",
+            record
+        );
 
 
-        if (needle) {
+        if (Number.isFinite(by)) {
 
-            needle.style.transform =
-                `translate(-50%, -100%) rotate(${angle}deg)`;
+            document.getElementById("by")
+                .textContent =
+                by.toFixed(1);
+
+        }
+
+
+        if (Number.isFinite(bz)) {
+
+            document.getElementById("bz")
+                .textContent =
+                bz.toFixed(1);
 
         }
 
 
-        const angleElement =
-            document.getElementById(
-                "clockAngle"
-            );
-
-
-        if (angleElement) {
-
-            angleElement.textContent =
-                angle.toFixed(1);
-
-        }
-
-    }
-
-
-    /*
-    ==================================================
-    LOAD KP DATA
-    ==================================================
-    */
-
-    async function loadKpData() {
-
-        try {
-
-            const data =
-                await getJSON(
-                    KP_URL
-                );
-
-
-            console.log(
-                "NOAA Kp data:",
-                data
-            );
-
-
-            if (
-                !Array.isArray(data) ||
-                data.length === 0
-            ) {
-
-                throw new Error(
-                    "No Kp data returned"
-                );
-
-            }
-
-
-            /*
-            Find records containing Kp.
-            */
-
-            const records =
-                data.filter(
-                    record => {
-
-                        if (
-                            !record ||
-                            typeof record !== "object"
-                        ) {
-
-                            return false;
-
-                        }
-
-
-                        const value =
-                            Number(
-                                getValue(
-                                    record,
-                                    [
-                                        "kp_index",
-                                        "kp",
-                                        "Kp"
-                                    ]
-                                )
-                            );
-
-
-                        return Number.isFinite(
-                            value
-                        );
-
-                    }
-                );
-
-
-            if (
-                records.length === 0
-            ) {
-
-                throw new Error(
-                    "No valid Kp values found"
-                );
-
-            }
-
-
-            /*
-            Latest Kp.
-            */
-
-            const latest =
-                records[
-                    records.length - 1
-                ];
-
-
-            const kp =
-                Number(
-                    getValue(
-                        latest,
-                        [
-                            "kp_index",
-                            "kp",
-                            "Kp"
-                        ]
-                    )
-                );
-
-
-            console.log(
-                "Latest Kp:",
-                kp
-            );
-
-
-            const kpElement =
-                document.getElementById(
-                    "currentKp"
-                );
-
-
-            if (
-                kpElement &&
-                Number.isFinite(kp)
-            ) {
-
-                kpElement.textContent =
-                    kp.toFixed(1);
-
-            }
-
-
-            /*
-            Last 40 readings.
-            */
-
-            const chartRecords =
-                records.slice(-40);
-
-
-            const labels =
-                chartRecords.map(
-                    record => {
-
-                        const timestamp =
-                            getValue(
-                                record,
-                                [
-                                    "time_tag",
-                                    "timestamp",
-                                    "time"
-                                ]
-                            );
-
-
-                        const date =
-                            new Date(
-                                timestamp
-                            );
-
-
-                        if (
-                            Number.isNaN(
-                                date.getTime()
-                            )
-                        ) {
-
-                            return "";
-
-                        }
-
-
-                        return date.toLocaleTimeString(
-                            "en-GB",
-                            {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                timeZone: "UTC"
-                            }
-                        );
-
-                    }
-                );
-
-
-            const values =
-                chartRecords.map(
-                    record => {
-
-                        return Number(
-                            getValue(
-                                record,
-                                [
-                                    "kp_index",
-                                    "kp",
-                                    "Kp"
-                                ]
-                            )
-                        );
-
-                    }
-                );
-
-
-            updateKpChart(
-                labels,
-                values
-            );
-
-
-            /*
-            Updated time.
-            */
-
-            const timestamp =
-                getValue(
-                    latest,
-                    [
-                        "time_tag",
-                        "timestamp",
-                        "time"
-                    ]
-                );
-
-
-            const updatedElement =
-                document.getElementById(
-                    "kpUpdated"
-                );
-
-
-            if (
-                updatedElement &&
-                timestamp
-            ) {
-
-                const date =
-                    new Date(
-                        timestamp
-                    );
-
-
-                if (
-                    !Number.isNaN(
-                        date.getTime()
-                    )
-                ) {
-
-                    updatedElement.textContent =
-                        "Updated " +
-                        date.toUTCString();
-
-                }
-
-            }
-
-
-        } catch (error) {
-
-            showError(
-                "Kp data error: " +
-                error.message
-            );
-
-        }
-
-    }
-
-
-    /*
-    ==================================================
-    CREATE KP CHART
-    ==================================================
-    */
-
-    function updateKpChart(
-        labels,
-        values
-    ) {
-
-        const canvas =
-            document.getElementById(
-                "kpChart"
-            );
-
-
-        if (!canvas) {
-
-            console.error(
-                "kpChart canvas not found"
-            );
-
-            return;
+        if (Number.isFinite(bt)) {
+
+            document.getElementById("bt")
+                .textContent =
+                bt.toFixed(1);
 
         }
 
 
         if (
-            typeof Chart ===
-            "undefined"
+            Number.isFinite(by) &&
+            Number.isFinite(bz)
         ) {
 
-            showError(
-                "Chart.js failed to load"
+            let angle =
+                Math.atan2(
+                    by,
+                    bz
+                ) *
+                180 /
+                Math.PI;
+
+
+            if (angle < 0) {
+
+                angle += 360;
+
+            }
+
+
+            document.getElementById("angle")
+                .textContent =
+                angle.toFixed(1);
+
+
+            document.getElementById("needle")
+                .style.transform =
+                `translate(-50%, -100%) rotate(${angle}deg)`;
+
+        }
+
+
+        const timestamp =
+            record.time_tag ||
+            record.timestamp ||
+            record.time;
+
+
+        if (timestamp) {
+
+            document.getElementById("magTime")
+                .textContent =
+                new Date(timestamp)
+                .toUTCString();
+
+        }
+
+
+        status(
+            "✓ NOAA magnetic data connected"
+        );
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        status(
+            "NOAA magnetic data error: " +
+            error.message,
+            true
+        );
+
+    }
+
+}
+
+
+/* =========================================
+   KP DATA
+========================================= */
+
+async function loadKp() {
+
+    try {
+
+        const data =
+            await getData(KP_URL);
+
+
+        console.log(
+            "KP NOAA:",
+            data
+        );
+
+
+        if (
+            !Array.isArray(data) ||
+            data.length === 0
+        ) {
+
+            throw new Error(
+                "NOAA Kp response is empty"
             );
 
-            return;
+        }
+
+
+        let records = [];
+
+
+        /*
+        Normal object format.
+        */
+
+        if (
+            typeof data[0] === "object" &&
+            !Array.isArray(data[0])
+        ) {
+
+            records = data;
 
         }
 
 
-        if (kpChart) {
+        /*
+        Header + rows format.
+        */
 
-            kpChart.destroy();
+        else if (
+            Array.isArray(data[0])
+        ) {
+
+            const headers =
+                data[0];
+
+
+            records =
+                data.slice(1)
+                .map(row => {
+
+                    const obj = {};
+
+                    headers.forEach(
+                        (header, index) => {
+
+                            obj[header] =
+                                row[index];
+
+                        }
+                    );
+
+                    return obj;
+
+                });
 
         }
 
 
-        kpChart =
-            new Chart(
-                canvas,
-                {
+        const valid =
+            records.filter(record => {
 
-                    type: "line",
+                return Number.isFinite(
+                    Number(
+                        record.kp_index
+                    )
+                );
 
-                    data: {
-
-                        labels: labels,
-
-                        datasets: [
-
-                            {
-
-                                label: "Kp",
-
-                                data: values,
-
-                                borderColor:
-                                    "#48b7ff",
-
-                                backgroundColor:
-                                    "rgba(72,183,255,0.12)",
-
-                                borderWidth: 2,
-
-                                pointRadius: 3,
-
-                                pointBackgroundColor:
-                                    "#48b7ff",
-
-                                tension: 0.25,
-
-                                fill: true
-
-                            }
-
-                        ]
-
-                    },
+            });
 
 
-                    options: {
+        if (valid.length === 0) {
 
-                        responsive: true,
+            throw new Error(
+                "Could not find kp_index in NOAA response"
+            );
 
-                        maintainAspectRatio: false,
+        }
 
 
-                        scales: {
+        const latest =
+            valid[valid.length - 1];
 
-                            y: {
 
-                                min: 0,
+        const kp =
+            Number(
+                latest.kp_index
+            );
 
-                                max: 9,
 
-                                ticks: {
+        document.getElementById("kp")
+            .textContent =
+            kp.toFixed(1);
 
-                                    stepSize: 1,
 
-                                    color:
-                                        "#71829b"
+        const recent =
+            valid.slice(-40);
 
-                                },
 
-                                title: {
+        const labels =
+            recent.map(record => {
 
-                                    display: true,
+                const date =
+                    new Date(
+                        record.time_tag
+                    );
 
-                                    text: "Kp",
 
-                                    color:
-                                        "#71829b"
+                return date.toLocaleTimeString(
+                    "en-GB",
+                    {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        timeZone: "UTC"
+                    }
+                );
 
-                                },
+            });
 
-                                grid: {
 
-                                    color:
-                                        "rgba(120,150,190,0.1)"
+        const values =
+            recent.map(record =>
+                Number(
+                    record.kp_index
+                )
+            );
 
-                                }
 
+        createChart(
+            labels,
+            values
+        );
+
+
+        if (latest.time_tag) {
+
+            document.getElementById("kpTime")
+                .textContent =
+                new Date(
+                    latest.time_tag
+                ).toUTCString();
+
+        }
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        document.getElementById("kp")
+            .textContent =
+            "ERR";
+
+        console.error(
+            "Kp error:",
+            error.message
+        );
+
+    }
+
+}
+
+
+/* =========================================
+   CHART
+========================================= */
+
+function createChart(
+    labels,
+    values
+) {
+
+    const canvas =
+        document.getElementById(
+            "kpChart"
+        );
+
+
+    if (chart) {
+
+        chart.destroy();
+
+    }
+
+
+    chart =
+        new Chart(
+            canvas,
+            {
+
+                type: "line",
+
+                data: {
+
+                    labels: labels,
+
+                    datasets: [{
+
+                        label: "Kp",
+
+                        data: values,
+
+                        borderColor:
+                            "#4bbcff",
+
+                        backgroundColor:
+                            "rgba(75,188,255,0.12)",
+
+                        borderWidth: 2,
+
+                        pointRadius: 3,
+
+                        tension: 0.25,
+
+                        fill: true
+
+                    }]
+
+                },
+
+
+                options: {
+
+                    responsive: true,
+
+                    maintainAspectRatio: false,
+
+                    scales: {
+
+                        y: {
+
+                            min: 0,
+
+                            max: 9,
+
+                            ticks: {
+                                color: "#71839c",
+                                stepSize: 1
                             },
 
-
-                            x: {
-
-                                ticks: {
-
-                                    color:
-                                        "#71829b"
-
-                                },
-
-                                title: {
-
-                                    display: true,
-
-                                    text: "UTC",
-
-                                    color:
-                                        "#71829b"
-
-                                },
-
-                                grid: {
-
-                                    color:
-                                        "rgba(120,150,190,0.05)"
-
-                                }
-
+                            grid: {
+                                color:
+                                "rgba(120,150,190,.1)"
                             }
 
                         },
 
+                        x: {
 
-                        plugins: {
+                            ticks: {
+                                color: "#71839c"
+                            },
 
-                            legend: {
+                            grid: {
+                                color:
+                                "rgba(120,150,190,.05)"
+                            }
 
-                                labels: {
+                        }
 
-                                    color:
-                                        "#9aabc2"
+                    },
 
-                                }
+                    plugins: {
 
+                        legend: {
+
+                            labels: {
+                                color: "#9aabc2"
                             }
 
                         }
@@ -1792,38 +975,33 @@
                     }
 
                 }
-            );
 
-    }
+            }
+        );
 
-
-    /*
-    ==================================================
-    INITIAL LOAD
-    ==================================================
-    */
-
-    loadMagneticData();
-
-    loadKpData();
+}
 
 
-    /*
-    ==================================================
-    REFRESH EVERY 60 SECONDS
-    ==================================================
-    */
+/* =========================================
+   START
+========================================= */
 
-    setInterval(
-        loadMagneticData,
-        60 * 1000
-    );
+loadMagnetic();
+
+loadKp();
 
 
-    setInterval(
-        loadKpData,
-        60 * 1000
-    );
+/* Refresh every minute */
+
+setInterval(
+    loadMagnetic,
+    60000
+);
+
+setInterval(
+    loadKp,
+    60000
+);
 
 </script>
 
