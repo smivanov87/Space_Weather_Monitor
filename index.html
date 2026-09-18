@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Space Weather Prediction</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<header>
+    <div>
+        <h1>SPACE WEATHER</h1>
+        <p>Real-time solar wind & geomagnetic conditions</p>
+    </div>
+
+    <div class="status">
+        <span class="status-dot"></span>
+        LIVE
+    </div>
+</header>
+
+
+<main>
+
+    <!-- TOP CARDS -->
+
+    <section class="cards">
+
+        <div class="card">
+            <h2>Solar Wind</h2>
+
+            <div class="value">
+                <span id="solarSpeed">--</span>
+                <small>km/s</small>
+            </div>
+
+            <p>Solar wind speed</p>
+        </div>
+
+
+        <div class="card">
+            <h2>IMF Bz</h2>
+
+            <div class="value">
+                <span id="bz">--</span>
+                <small>nT</small>
+            </div>
+
+            <p>Interplanetary magnetic field</p>
+        </div>
+
+
+        <div class="card">
+            <h2>IMF Clock Angle</h2>
+
+            <div class="clock-container">
+
+                <div class="clock">
+
+                    <div class="degree degree-0">0°</div>
+                    <div class="degree degree-90">90°</div>
+                    <div class="degree degree-180">180°</div>
+                    <div class="degree degree-270">270°</div>
+
+                    <div
+                        id="clockNeedle"
+                        class="needle">
+                    </div>
+
+                    <div class="clock-center"></div>
+
+                </div>
+
+            </div>
+
+            <div class="clock-value">
+                <span id="clockAngle">--</span>°
+            </div>
+
+            <p>IMF clock angle</p>
+
+        </div>
+
+
+        <div class="card">
+            <h2>Kp Index</h2>
+
+            <div class="value">
+                <span id="currentKp">--</span>
+            </div>
+
+            <p>Planetary geomagnetic activity</p>
+        </div>
+
+    </section>
+
+
+    <!-- KP GRAPH -->
+
+    <section class="panel">
+
+        <div class="panel-header">
+
+            <div>
+                <h2>Kp Index vs Time</h2>
+                <p>Recent planetary geomagnetic activity</p>
+            </div>
+
+            <div id="kpUpdated">
+                Waiting for data...
+            </div>
+
+        </div>
+
+        <div class="chart-container">
+
+            <canvas id="kpChart"></canvas>
+
+        </div>
+
+    </section>
+
+
+    <!-- DATA -->
+
+    <section class="panel">
+
+        <h2>Real-Time Solar Wind</h2>
+
+        <div class="data-grid">
+
+            <div>
+                <span>By</span>
+                <strong id="by">--</strong>
+                <small>nT</small>
+            </div>
+
+            <div>
+                <span>Bz</span>
+                <strong id="bz2">--</strong>
+                <small>nT</small>
+            </div>
+
+            <div>
+                <span>Bt</span>
+                <strong id="bt">--</strong>
+                <small>nT</small>
+            </div>
+
+            <div>
+                <span>Speed</span>
+                <strong id="speed2">--</strong>
+                <small>km/s</small>
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <section class="source">
+
+        Data source:
+        NOAA Space Weather Prediction Center (SWPC)
+
+        <br>
+
+        Last update:
+        <span id="lastUpdate">--</span>
+
+    </section>
+
+</main>
+
+
+<footer>
+
+    <p>
+        Space Weather Prediction Dashboard
+    </p>
+
+</footer>
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="script.js"></script>
+
+</body>
+</html>
