@@ -4,8 +4,130 @@ const MAG_URL =
 const KP_URL =
     "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json";
 
+let kpChart = null;
 
-let kpChart;
+
+/*
+--------------------------------------------------
+HELPERS
+--------------------------------------------------
+*/
+
+async function fetchJson(url) {
+
+    const response = await fetch(url, {
+        cache: "no-store"
+    });
+
+    if (!response.ok) {
+        throw new Error(
+            `HTTP ${response.status} ${response.statusText}`
+        );
+    }
+
+    return await response.json();
+}
+
+
+/*
+Convert NOAA data into an array of objects.
+
+Supports:
+
+1. Array of objects:
+   [
+       { time_tag: "...", Bz: -5.2, ... }
+   ]
+
+2. Header + rows:
+   [
+       ["time_tag", "Bz", "By"],
+       ["...", "-5.2", "2.1"]
+   ]
+*/
+
+function normaliseData(data) {
+
+    if (!Array.isArray(data) || data.length === 0) {
+        return [];
+    }
+
+
+    // Already an array of objects
+    if (
+        typeof data[0] === "object" &&
+        !Array.isArray(data[0])
+    ) {
+
+        return data;
+    }
+
+
+    // Header + rows
+    if (Array.isArray(data[0])) {
+
+        const headers = data[0];
+
+        return data.slice(1).map(row => {
+
+            const record = {};
+
+            headers.forEach((header, index) => {
+
+                record[header] = row[index];
+
+            });
+
+            return record;
+
+        });
+    }
+
+
+    return [];
+}
+
+
+/*
+Find a property regardless of minor
+capitalisation differences.
+*/
+
+function getField(record, names) {
+
+    for (const name of names) {
+
+        if (
+            record[name] !== undefined &&
+            record[name] !== null
+        ) {
+
+            return record[name];
+
+        }
+    }
+
+
+    // Case-insensitive fallback
+
+    const keys = Object.keys(record);
+
+    for (const wanted of names) {
+
+        const found = keys.find(
+            key =>
+                key.toLowerCase() ===
+                wanted.toLowerCase()
+        );
+
+        if (found) {
+            return record[found];
+        }
+    }
+
+
+    return undefined;
+}
 
 
 /*
@@ -18,102 +140,169 @@ async function loadMagneticData() {
 
     try {
 
-        const response =
-            await fetch(MAG_URL);
-
         const data =
-            await response.json();
+            await fetchJson(MAG_URL);
 
-        if (!data || data.length < 2) {
-            throw new Error("No magnetic data");
+
+        const records =
+            normaliseData(data);
+
+
+        if (records.length === 0) {
+            throw new Error("No magnetic data received");
         }
 
 
         /*
-        NOAA JSON normally contains:
+        Find the latest valid record.
 
-        timestamp
-        source
-        ...
-        By
-        Bz
-        Bt
+        Sometimes the final NOAA record can contain
+        null values, so work backwards until we find
+        a usable record.
         */
 
-        const headers = data[0];
+        let latest = null;
 
-        const rows = data.slice(1);
+        for (
+            let i = records.length - 1;
+            i >= 0;
+            i--
+        ) {
+
+            const record = records[i];
+
+            const by =
+                Number(
+                    getField(record, ["By", "by"])
+                );
+
+            const bz =
+                Number(
+                    getField(record, ["Bz", "bz"])
+                );
+
+            const bt =
+                Number(
+                    getField(record, ["Bt", "bt"])
+                );
 
 
-        const latest =
-            rows[rows.length - 1];
+            if (
+                Number.isFinite(by) ||
+                Number.isFinite(bz) ||
+                Number.isFinite(bt)
+            ) {
+
+                latest = record;
+                break;
+
+            }
+        }
 
 
-        const record = {};
-
-        headers.forEach((header, index) => {
-
-            record[header] =
-                latest[index];
-
-        });
+        if (!latest) {
+            throw new Error(
+                "No valid magnetic field record found"
+            );
+        }
 
 
         /*
-        Get By / Bz / Bt
+        Get magnetic field values
         */
 
         const by =
-            Number(record.By);
+            Number(
+                getField(latest, ["By", "by"])
+            );
 
         const bz =
-            Number(record.Bz);
+            Number(
+                getField(latest, ["Bz", "bz"])
+            );
 
         const bt =
-            Number(record.Bt);
+            Number(
+                getField(latest, ["Bt", "bt"])
+            );
 
 
         /*
-        Update display
+        Update By
         */
 
-        if (Number.isFinite(by)) {
+        const byElement =
+            document.getElementById("by");
 
-            document.getElementById("by")
-                .textContent =
+        if (
+            byElement &&
+            Number.isFinite(by)
+        ) {
+
+            byElement.textContent =
                 by.toFixed(1);
 
         }
 
 
+        /*
+        Update Bz
+        */
+
+        const bzElement =
+            document.getElementById("bz");
+
+        const bzElement2 =
+            document.getElementById("bz2");
+
+
         if (Number.isFinite(bz)) {
 
-            document.getElementById("bz")
-                .textContent =
-                bz.toFixed(1);
+            if (bzElement) {
 
-            document.getElementById("bz2")
-                .textContent =
-                bz.toFixed(1);
+                bzElement.textContent =
+                    bz.toFixed(1);
+
+            }
+
+
+            if (bzElement2) {
+
+                bzElement2.textContent =
+                    bz.toFixed(1);
+
+            }
 
         }
 
 
-        if (Number.isFinite(bt)) {
+        /*
+        Update Bt
+        */
 
-            document.getElementById("bt")
-                .textContent =
+        const btElement =
+            document.getElementById("bt");
+
+        if (
+            btElement &&
+            Number.isFinite(bt)
+        ) {
+
+            btElement.textContent =
                 bt.toFixed(1);
 
         }
 
 
         /*
-        CLOCK ANGLE
+        IMF CLOCK ANGLE
 
         atan2(By, Bz)
 
-        gives the IMF clock angle.
+        0°   = north
+        90°  = east
+        180° = south
+        270° = west
         */
 
         if (
@@ -132,6 +321,7 @@ async function loadMagneticData() {
 
 
             updateClock(angle);
+
         }
 
 
@@ -140,17 +330,37 @@ async function loadMagneticData() {
         */
 
         const timestamp =
-            record.time_tag ||
-            record.timestamp;
+            getField(
+                latest,
+                [
+                    "time_tag",
+                    "timestamp",
+                    "time"
+                ]
+            );
 
 
-        if (timestamp) {
-
+        const updateElement =
             document.getElementById(
                 "lastUpdate"
-            ).textContent =
-                new Date(timestamp)
-                .toUTCString();
+            );
+
+
+        if (
+            updateElement &&
+            timestamp
+        ) {
+
+            const date =
+                new Date(timestamp);
+
+
+            if (!Number.isNaN(date.getTime())) {
+
+                updateElement.textContent =
+                    date.toUTCString();
+
+            }
 
         }
 
@@ -180,25 +390,26 @@ function updateClock(angle) {
         );
 
 
-    /*
-    CSS needle points upward at 0°.
+    if (needle) {
 
-    Therefore:
+        needle.style.transform =
+            `rotate(${angle}deg)`;
 
-    0° = north
-    90° = east
-    180° = south
-    270° = west
-    */
-
-    needle.style.transform =
-        `rotate(${angle}deg)`;
+    }
 
 
-    document.getElementById(
-        "clockAngle"
-    ).textContent =
-        angle.toFixed(1);
+    const angleElement =
+        document.getElementById(
+            "clockAngle"
+        );
+
+
+    if (angleElement) {
+
+        angleElement.textContent =
+            angle.toFixed(1);
+
+    }
 }
 
 
@@ -212,110 +423,156 @@ async function loadKpData() {
 
     try {
 
-        const response =
-            await fetch(KP_URL);
-
         const data =
-            await response.json();
-
-
-        if (!data || data.length < 2) {
-            throw new Error("No Kp data");
-        }
-
-
-        const headers = data[0];
-
-        const rows = data.slice(1);
+            await fetchJson(KP_URL);
 
 
         const records =
-            rows.map(row => {
+            normaliseData(data);
 
-                const record = {};
 
-                headers.forEach(
-                    (header, index) => {
+        if (records.length === 0) {
+            throw new Error("No Kp data received");
+        }
 
-                        record[header] =
-                            row[index];
 
-                    }
-                );
+        /*
+        Keep only records with a valid Kp value.
+        */
 
-                return record;
+        const validRecords =
+            records.filter(record => {
+
+                const value =
+                    Number(
+                        getField(
+                            record,
+                            [
+                                "kp_index",
+                                "kp",
+                                "Kp"
+                            ]
+                        )
+                    );
+
+                return Number.isFinite(value);
 
             });
 
 
+        if (validRecords.length === 0) {
+
+            throw new Error(
+                "No valid Kp records found"
+            );
+
+        }
+
+
         /*
-        Get the most recent Kp
+        Most recent Kp
         */
 
         const latest =
-            records[records.length - 1];
+            validRecords[
+                validRecords.length - 1
+            ];
 
 
         const kp =
             Number(
-                latest.kp_index
+                getField(
+                    latest,
+                    [
+                        "kp_index",
+                        "kp",
+                        "Kp"
+                    ]
+                )
             );
 
 
-        if (Number.isFinite(kp)) {
-
+        const currentKpElement =
             document.getElementById(
                 "currentKp"
-            ).textContent =
+            );
+
+
+        if (
+            currentKpElement &&
+            Number.isFinite(kp)
+        ) {
+
+            currentKpElement.textContent =
                 kp.toFixed(1);
 
         }
 
 
         /*
-        Create chart data
+        Last 40 Kp records
         */
 
         const chartRecords =
-            records
-                .filter(record =>
-                    Number.isFinite(
-                        Number(
-                            record.kp_index
-                        )
-                    )
-                )
-                .slice(-40);
+            validRecords.slice(-40);
 
 
         const labels =
-            chartRecords.map(
-                record => {
+            chartRecords.map(record => {
 
-                    const time =
-                        record.time_tag ||
-                        record.timestamp;
+                const time =
+                    getField(
+                        record,
+                        [
+                            "time_tag",
+                            "timestamp",
+                            "time"
+                        ]
+                    );
 
-                    return new Date(time)
-                        .toLocaleTimeString(
-                            "en-GB",
-                            {
-                                hour: "2-digit",
-                                minute: "2-digit"
-                            }
-                        );
+
+                const date =
+                    new Date(time);
+
+
+                if (
+                    Number.isNaN(
+                        date.getTime()
+                    )
+                ) {
+
+                    return "";
 
                 }
-            );
+
+
+                return date.toLocaleTimeString(
+                    "en-GB",
+                    {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        timeZone: "UTC"
+                    }
+                );
+
+            });
 
 
         const values =
-            chartRecords.map(
-                record =>
-                    Number(
-                        record.kp_index
+            chartRecords.map(record => {
+
+                return Number(
+                    getField(
+                        record,
+                        [
+                            "kp_index",
+                            "kp",
+                            "Kp"
+                        ]
                     )
-            );
+                );
+
+            });
 
 
         updateKpChart(
@@ -324,19 +581,43 @@ async function loadKpData() {
         );
 
 
+        /*
+        Kp update time
+        */
+
         const latestTime =
-            latest.time_tag ||
-            latest.timestamp;
+            getField(
+                latest,
+                [
+                    "time_tag",
+                    "timestamp",
+                    "time"
+                ]
+            );
 
 
-        if (latestTime) {
-
+        const kpUpdatedElement =
             document.getElementById(
                 "kpUpdated"
-            ).textContent =
-                "Updated " +
-                new Date(latestTime)
-                    .toUTCString();
+            );
+
+
+        if (
+            kpUpdatedElement &&
+            latestTime
+        ) {
+
+            const date =
+                new Date(latestTime);
+
+
+            if (!Number.isNaN(date.getTime())) {
+
+                kpUpdatedElement.textContent =
+                    "Updated " +
+                    date.toUTCString();
+
+            }
 
         }
 
@@ -369,12 +650,48 @@ function updateKpChart(
         );
 
 
+    if (!canvas) {
+
+        console.error(
+            "Kp chart canvas #kpChart not found"
+        );
+
+        return;
+
+    }
+
+
+    /*
+    Make sure Chart.js is loaded.
+    */
+
+    if (typeof Chart === "undefined") {
+
+        console.error(
+            "Chart.js is not loaded"
+        );
+
+        return;
+
+    }
+
+
+    /*
+    Destroy previous chart
+    */
+
     if (kpChart) {
 
         kpChart.destroy();
 
+        kpChart = null;
+
     }
 
+
+    /*
+    Create new chart
+    */
 
     kpChart =
         new Chart(canvas, {
@@ -402,6 +719,9 @@ function updateKpChart(
                     pointRadius: 3,
 
                     pointBackgroundColor:
+                        "#48b7ff",
+
+                    pointBorderColor:
                         "#48b7ff",
 
                     tension: 0.25,
@@ -432,7 +752,9 @@ function updateKpChart(
 
                             display: true,
 
-                            text: "Kp"
+                            text: "Kp",
+
+                            color: "#71829b"
 
                         },
 
@@ -445,7 +767,9 @@ function updateKpChart(
 
                         ticks: {
 
-                            color: "#71829b"
+                            color: "#71829b",
+
+                            stepSize: 1
 
                         }
 
@@ -458,7 +782,9 @@ function updateKpChart(
 
                             display: true,
 
-                            text: "UTC"
+                            text: "UTC",
+
+                            color: "#71829b"
 
                         },
 
