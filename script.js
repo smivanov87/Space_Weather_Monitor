@@ -1,100 +1,220 @@
+/*
+========================================================
+ SPACE WEATHER PREDICTION
+ Real-time NOAA SWPC data
+========================================================
+*/
+
+/*
+========================================================
+ NOAA DATA SOURCES
+========================================================
+*/
+
 const MAG_URL =
     "https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json";
+
+const WIND_URL =
+    "https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json";
 
 const KP_URL =
     "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json";
 
+
+/*
+========================================================
+ GLOBALS
+========================================================
+*/
+
 let kpChart = null;
 
 
-/* ==================================================
-   GENERIC FETCH
-   ================================================== */
+/*
+========================================================
+ HELPER FUNCTIONS
+========================================================
+*/
 
-async function getJSON(url) {
+/*
+ Convert NOAA array-format JSON into objects.
 
-    const response = await fetch(url, {
-        cache: "no-store"
-    });
+ NOAA commonly returns:
 
-    if (!response.ok) {
-        throw new Error(
-            `HTTP ${response.status}: ${response.statusText}`
-        );
+ [
+   ["time_tag", "bx_gsm", "by_gsm", "bz_gsm", "bt"],
+   ["2026-...", "...", "...", "...", "..."]
+ ]
+
+ This function converts each row into:
+
+ {
+   time_tag: "...",
+   bx_gsm: "...",
+   by_gsm: "...",
+   bz_gsm: "...",
+   bt: "..."
+ }
+*/
+
+function convertNOAAData(data) {
+
+    if (!Array.isArray(data) || data.length < 2) {
+        return [];
     }
 
-    return await response.json();
+    const headers = data[0];
+
+    return data
+        .slice(1)
+        .map(row => {
+
+            const record = {};
+
+            headers.forEach((header, index) => {
+                record[header] = row[index];
+            });
+
+            return record;
+        });
 }
 
 
-/* ==================================================
-   FIND VALUE IN NOAA RECORD
-   ================================================== */
+/*
+ Find a value using several possible NOAA field names.
+ This makes the code more tolerant if NOAA changes
+ the field naming slightly.
+*/
 
-function getValue(record, names) {
+function getField(record, names) {
 
     for (const name of names) {
 
         if (
+            record &&
             record[name] !== undefined &&
             record[name] !== null &&
             record[name] !== ""
         ) {
-            return record[name];
+            return Number(record[name]);
         }
-
     }
 
-    return null;
+    return NaN;
 }
 
 
-/* ==================================================
-   MAGNETIC FIELD
-   ================================================== */
+/*
+ Find timestamp.
+*/
+
+function getTimestamp(record) {
+
+    if (!record) {
+        return null;
+    }
+
+    return (
+        record.time_tag ||
+        record.timestamp ||
+        record.time ||
+        null
+    );
+}
+
+
+/*
+ Format a timestamp in UTC.
+*/
+
+function formatUTC(timestamp) {
+
+    if (!timestamp) {
+        return "--";
+    }
+
+    const date = new Date(timestamp);
+
+    if (Number.isNaN(date.getTime())) {
+        return "--";
+    }
+
+    return date.toUTCString();
+}
+
+
+/*
+ Update an HTML element safely.
+*/
+
+function setText(id, value) {
+
+    const element = document.getElementById(id);
+
+    if (element) {
+        element.textContent = value;
+    }
+}
+
+
+/*
+========================================================
+ LOAD MAGNETIC FIELD DATA
+========================================================
+*/
 
 async function loadMagneticData() {
 
     try {
 
-        const data = await getJSON(MAG_URL);
+        console.log("Loading NOAA magnetic-field data...");
 
-        console.log("NOAA MAG DATA:", data);
+        const response = await fetch(
+            MAG_URL + "?_=" + Date.now(),
+            {
+                cache: "no-store"
+            }
+        );
 
+        if (!response.ok) {
+            throw new Error(
+                `NOAA magnetic request failed: ${response.status}`
+            );
+        }
 
-        if (!Array.isArray(data) || data.length === 0) {
-            throw new Error("NOAA returned no magnetic data");
+        const data = await response.json();
+
+        const records = convertNOAAData(data);
+
+        if (records.length === 0) {
+            throw new Error("No magnetic-field records returned");
         }
 
 
         /*
-        NOAA normally returns an array of objects.
+        Find the newest record containing valid data.
         */
 
         let latest = null;
 
+        for (let i = records.length - 1; i >= 0; i--) {
 
-        for (let i = data.length - 1; i >= 0; i--) {
+            const by = getField(records[i], [
+                "by_gsm",
+                "by",
+                "By"
+            ]);
 
-            const item = data[i];
+            const bz = getField(records[i], [
+                "bz_gsm",
+                "bz",
+                "Bz"
+            ]);
 
-            if (!item || typeof item !== "object") {
-                continue;
-            }
-
-
-            const by = Number(
-                getValue(item, ["By", "by"])
-            );
-
-            const bz = Number(
-                getValue(item, ["Bz", "bz"])
-            );
-
-            const bt = Number(
-                getValue(item, ["Bt", "bt"])
-            );
-
+            const bt = getField(records[i], [
+                "bt",
+                "Bt"
+            ]);
 
             if (
                 Number.isFinite(by) ||
@@ -102,116 +222,102 @@ async function loadMagneticData() {
                 Number.isFinite(bt)
             ) {
 
-                latest = item;
-
+                latest = records[i];
                 break;
             }
-
         }
 
 
         if (!latest) {
             throw new Error(
-                "Could not find valid By/Bz/Bt values"
+                "No valid magnetic-field data found"
             );
         }
 
 
-        const by = Number(
-            getValue(latest, ["By", "by"])
-        );
+        /*
+        Get magnetic-field values.
 
-        const bz = Number(
-            getValue(latest, ["Bz", "bz"])
-        );
+        Prefer GSM components because the dashboard
+        uses IMF clock angle.
+        */
 
-        const bt = Number(
-            getValue(latest, ["Bt", "bt"])
-        );
+        const by = getField(latest, [
+            "by_gsm",
+            "by",
+            "By"
+        ]);
+
+        const bz = getField(latest, [
+            "bz_gsm",
+            "bz",
+            "Bz"
+        ]);
+
+        const bt = getField(latest, [
+            "bt",
+            "Bt"
+        ]);
 
 
-        console.log(
-            "Latest IMF:",
-            {
-                By: by,
-                Bz: bz,
-                Bt: bt,
-                record: latest
-            }
-        );
+        /*
+        Update By
+        */
 
+        if (Number.isFinite(by)) {
 
-        /* -----------------------------
-           By
-        ----------------------------- */
-
-        const byElement =
-            document.getElementById("by");
-
-        if (
-            byElement &&
-            Number.isFinite(by)
-        ) {
-
-            byElement.textContent =
-                by.toFixed(1);
-
+            setText(
+                "by",
+                by.toFixed(1)
+            );
         }
 
 
-        /* -----------------------------
-           Bz
-        ----------------------------- */
+        /*
+        Update Bz
+        */
 
-        const bzElement =
-            document.getElementById("bz");
+        if (Number.isFinite(bz)) {
 
-        const bz2Element =
-            document.getElementById("bz2");
+            setText(
+                "bz",
+                bz.toFixed(1)
+            );
 
-
-        if (
-            Number.isFinite(bz)
-        ) {
-
-            if (bzElement) {
-
-                bzElement.textContent =
-                    bz.toFixed(1);
-
-            }
-
-            if (bz2Element) {
-
-                bz2Element.textContent =
-                    bz.toFixed(1);
-
-            }
-
+            setText(
+                "bz2",
+                bz.toFixed(1)
+            );
         }
 
 
-        /* -----------------------------
-           Bt
-        ----------------------------- */
+        /*
+        Update total magnetic-field strength
+        */
 
-        const btElement =
-            document.getElementById("bt");
+        if (Number.isFinite(bt)) {
 
-        if (
-            btElement &&
-            Number.isFinite(bt)
-        ) {
-
-            btElement.textContent =
-                bt.toFixed(1);
-
+            setText(
+                "bt",
+                bt.toFixed(1)
+            );
         }
 
 
-        /* -----------------------------
-           CLOCK ANGLE
-        ----------------------------- */
+        /*
+        ====================================================
+        IMF CLOCK ANGLE
+        ====================================================
+
+        Clock angle in GSM coordinates:
+
+        atan2(By, Bz)
+
+        0°   = northward
+        90°  = eastward
+        180° = southward
+        270° = westward
+        */
 
         if (
             Number.isFinite(by) &&
@@ -223,80 +329,203 @@ async function loadMagneticData() {
                 180 /
                 Math.PI;
 
-
             if (angle < 0) {
                 angle += 360;
             }
-
 
             updateClock(angle);
         }
 
 
-        /* -----------------------------
-           TIME
-        ----------------------------- */
+        /*
+        Timestamp
+        */
 
         const timestamp =
-            getValue(
-                latest,
-                [
-                    "time_tag",
-                    "timestamp",
-                    "time"
-                ]
+            getTimestamp(latest);
+
+        if (timestamp) {
+
+            setText(
+                "lastUpdate",
+                formatUTC(timestamp)
             );
-
-
-        const updateElement =
-            document.getElementById(
-                "lastUpdate"
-            );
-
-
-        if (
-            updateElement &&
-            timestamp
-        ) {
-
-            const date =
-                new Date(timestamp);
-
-
-            if (
-                !Number.isNaN(
-                    date.getTime()
-                )
-            ) {
-
-                updateElement.textContent =
-                    date.toUTCString();
-
-            }
-
         }
+
+
+        console.log(
+            "NOAA magnetic data loaded:",
+            latest
+        );
 
 
     } catch (error) {
 
         console.error(
-            "MAGNETIC DATA ERROR:",
+            "Magnetic data error:",
             error
         );
 
-        showError(
-            "Magnetic data error: " +
-            error.message
-        );
-
+        /*
+        Do not erase previous valid values.
+        This allows the dashboard to continue
+        displaying the last successful reading.
+        */
     }
-
 }
 
 
-/* ==================================================
-   CLOCK
-   ================================================== */
+/*
+========================================================
+ LOAD SOLAR-WIND SPEED
+========================================================
+*/
+
+async function loadWindData() {
+
+    try {
+
+        console.log("Loading NOAA solar-wind data...");
+
+        const response = await fetch(
+            WIND_URL + "?_=" + Date.now(),
+            {
+                cache: "no-store"
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error(
+                `NOAA wind request failed: ${response.status}`
+            );
+        }
+
+        const data = await response.json();
+
+        const records = convertNOAAData(data);
+
+        if (records.length === 0) {
+            throw new Error(
+                "No solar-wind records returned"
+            );
+        }
+
+
+        /*
+        Find newest record with a valid speed.
+
+        NOAA field is normally:
+        V
+        or
+        speed
+        */
+
+        let latest = null;
+        let speed = NaN;
+
+        for (let i = records.length - 1; i >= 0; i--) {
+
+            const possibleSpeed = getField(
+                records[i],
+                [
+                    "V",
+                    "v",
+                    "speed",
+                    "wind_speed",
+                    "Vsw"
+                ]
+            );
+
+            if (Number.isFinite(possibleSpeed)) {
+
+                latest = records[i];
+                speed = possibleSpeed;
+
+                break;
+            }
+        }
+
+
+        if (!latest || !Number.isFinite(speed)) {
+
+            throw new Error(
+                "No valid solar-wind speed found"
+            );
+        }
+
+
+        /*
+        Update top solar-wind card
+        */
+
+        setText(
+            "solarSpeed",
+            speed.toFixed(0)
+        );
+
+
+        /*
+        Update detailed solar-wind section
+        */
+
+        setText(
+            "speed2",
+            speed.toFixed(0)
+        );
+
+
+        /*
+        Update timestamp if magnetic data
+        isn't available.
+        */
+
+        const timestamp =
+            getTimestamp(latest);
+
+        if (
+            timestamp &&
+            document.getElementById("lastUpdate")
+        ) {
+
+            const currentText =
+                document.getElementById(
+                    "lastUpdate"
+                ).textContent;
+
+            if (
+                !currentText ||
+                currentText === "--"
+            ) {
+
+                setText(
+                    "lastUpdate",
+                    formatUTC(timestamp)
+                );
+            }
+        }
+
+
+        console.log(
+            "NOAA solar-wind data loaded:",
+            latest
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "Solar-wind data error:",
+            error
+        );
+    }
+}
+
+
+/*
+========================================================
+ CLOCK ANGLE DISPLAY
+========================================================
+*/
 
 function updateClock(angle) {
 
@@ -305,92 +534,82 @@ function updateClock(angle) {
             "clockNeedle"
         );
 
-
     if (needle) {
 
         needle.style.transform =
             `rotate(${angle}deg)`;
-
     }
 
 
-    const angleElement =
-        document.getElementById(
-            "clockAngle"
-        );
-
-
-    if (angleElement) {
-
-        angleElement.textContent =
-            angle.toFixed(1);
-
-    }
-
+    setText(
+        "clockAngle",
+        angle.toFixed(1)
+    );
 }
 
 
-/* ==================================================
-   KP DATA
-   ================================================== */
+/*
+========================================================
+ LOAD KP DATA
+========================================================
+*/
 
 async function loadKpData() {
 
     try {
 
-        const data = await getJSON(KP_URL);
+        console.log("Loading NOAA Kp data...");
 
-        console.log("NOAA KP DATA:", data);
+        const response = await fetch(
+            KP_URL + "?_=" + Date.now(),
+            {
+                cache: "no-store"
+            }
+        );
 
-
-        if (!Array.isArray(data) || data.length === 0) {
-
+        if (!response.ok) {
             throw new Error(
-                "NOAA returned no Kp data"
+                `NOAA Kp request failed: ${response.status}`
             );
+        }
 
+        const data = await response.json();
+
+        const records = convertNOAAData(data);
+
+        if (records.length === 0) {
+            throw new Error(
+                "No Kp records returned"
+            );
         }
 
 
         /*
-        Find records with a Kp value.
+        Find valid Kp records.
         */
 
-        const records =
-            data.filter(item => {
+        const validRecords =
+            records.filter(record => {
 
-                if (
-                    !item ||
-                    typeof item !== "object"
-                ) {
-                    return false;
-                }
-
-
-                const value =
-                    Number(
-                        getValue(
-                            item,
-                            [
-                                "kp_index",
-                                "kp",
-                                "Kp"
-                            ]
-                        )
+                const kp =
+                    getField(
+                        record,
+                        [
+                            "kp_index",
+                            "kp",
+                            "Kp"
+                        ]
                     );
 
-
-                return Number.isFinite(value);
-
+                return Number.isFinite(kp);
             });
 
 
-        if (records.length === 0) {
+        if (validRecords.length === 0) {
 
             throw new Error(
                 "No valid Kp values found"
             );
-
         }
 
 
@@ -399,109 +618,83 @@ async function loadKpData() {
         */
 
         const latest =
-            records[records.length - 1];
+            validRecords[
+                validRecords.length - 1
+            ];
 
 
         const kp =
-            Number(
-                getValue(
-                    latest,
-                    [
-                        "kp_index",
-                        "kp",
-                        "Kp"
-                    ]
-                )
+            getField(
+                latest,
+                [
+                    "kp_index",
+                    "kp",
+                    "Kp"
+                ]
             );
 
 
-        console.log(
-            "Latest Kp:",
-            kp,
-            latest
-        );
+        if (Number.isFinite(kp)) {
 
-
-        const kpElement =
-            document.getElementById(
-                "currentKp"
+            setText(
+                "currentKp",
+                kp.toFixed(1)
             );
-
-
-        if (
-            kpElement &&
-            Number.isFinite(kp)
-        ) {
-
-            kpElement.textContent =
-                kp.toFixed(1);
-
         }
 
 
         /*
-        Last 40 readings
+        ====================================================
+        Kp CHART
+        ====================================================
         */
 
         const chartRecords =
-            records.slice(-40);
+            validRecords.slice(-40);
 
 
         const labels =
-            chartRecords.map(item => {
+            chartRecords.map(record => {
 
                 const timestamp =
-                    getValue(
-                        item,
-                        [
-                            "time_tag",
-                            "timestamp",
-                            "time"
-                        ]
-                    );
+                    getTimestamp(record);
 
+                if (!timestamp) {
+                    return "";
+                }
 
                 const date =
                     new Date(timestamp);
-
 
                 if (
                     Number.isNaN(
                         date.getTime()
                     )
                 ) {
-
                     return "";
-
                 }
-
 
                 return date.toLocaleTimeString(
                     "en-GB",
                     {
                         hour: "2-digit",
-                        minute: "2-digit",
-                        timeZone: "UTC"
+                        minute: "2-digit"
                     }
                 );
-
             });
 
 
         const values =
-            chartRecords.map(item => {
+            chartRecords.map(record => {
 
-                return Number(
-                    getValue(
-                        item,
-                        [
-                            "kp_index",
-                            "kp",
-                            "Kp"
-                        ]
-                    )
+                return getField(
+                    record,
+                    [
+                        "kp_index",
+                        "kp",
+                        "Kp"
+                    ]
                 );
-
             });
 
 
@@ -512,70 +705,48 @@ async function loadKpData() {
 
 
         /*
-        Update timestamp
+        Kp timestamp
         */
 
-        const timestamp =
-            getValue(
-                latest,
-                [
-                    "time_tag",
-                    "timestamp",
-                    "time"
-                ]
+        const latestTime =
+            getTimestamp(latest);
+
+        if (latestTime) {
+
+            setText(
+                "kpUpdated",
+                "Updated " +
+                formatUTC(latestTime)
             );
-
-
-        const updatedElement =
-            document.getElementById(
-                "kpUpdated"
-            );
-
-
-        if (
-            updatedElement &&
-            timestamp
-        ) {
-
-            const date =
-                new Date(timestamp);
-
-
-            if (
-                !Number.isNaN(
-                    date.getTime()
-                )
-            ) {
-
-                updatedElement.textContent =
-                    "Updated " +
-                    date.toUTCString();
-
-            }
-
         }
+
+
+        console.log(
+            "NOAA Kp data loaded:",
+            latest
+        );
 
 
     } catch (error) {
 
         console.error(
-            "KP DATA ERROR:",
+            "Kp data error:",
             error
         );
 
-        showError(
-            "Kp data error: " +
-            error.message
+        setText(
+            "kpUpdated",
+            "Kp data temporarily unavailable"
         );
-
     }
-
 }
 
 
-/* ==================================================
-   CHART
-   ================================================== */
+/*
+========================================================
+ KP CHART
+========================================================
+*/
 
 function updateKpChart(
     labels,
@@ -587,45 +758,36 @@ function updateKpChart(
             "kpChart"
         );
 
-
     if (!canvas) {
 
-        console.error(
-            "Canvas #kpChart was not found"
+        console.warn(
+            "kpChart canvas not found"
         );
 
         return;
-
     }
 
 
-    if (typeof Chart === "undefined") {
-
-        console.error(
-            "Chart.js has not been loaded"
-        );
-
-        showError(
-            "Chart.js is not loaded"
-        );
-
-        return;
-
-    }
-
+    /*
+    Destroy previous Chart.js instance.
+    */
 
     if (kpChart) {
 
         kpChart.destroy();
 
+        kpChart = null;
     }
 
+
+    /*
+    Create chart.
+    */
 
     kpChart =
         new Chart(
             canvas,
             {
-
                 type: "line",
 
                 data: {
@@ -635,7 +797,6 @@ function updateKpChart(
                     datasets: [
 
                         {
-
                             label: "Kp",
 
                             data: values,
@@ -653,14 +814,15 @@ function updateKpChart(
                             pointBackgroundColor:
                                 "#48b7ff",
 
+                            pointBorderColor:
+                                "#48b7ff",
+
                             tension: 0.25,
 
                             fill: true
-
                         }
 
                     ]
-
                 },
 
 
@@ -671,6 +833,9 @@ function updateKpChart(
                     maintainAspectRatio: false,
 
 
+                    animation: false,
+
+
                     scales: {
 
                         y: {
@@ -679,44 +844,32 @@ function updateKpChart(
 
                             max: 9,
 
-                            ticks: {
-
-                                stepSize: 1,
-
-                                color:
-                                    "#71829b"
-
-                            },
-
                             title: {
 
                                 display: true,
 
                                 text: "Kp",
 
-                                color:
-                                    "#71829b"
-
+                                color: "#9aabc2"
                             },
+
 
                             grid: {
 
                                 color:
                                     "rgba(120,150,190,0.1)"
+                            },
 
-                            }
-
-                        },
-
-
-                        x: {
 
                             ticks: {
 
                                 color:
                                     "#71829b"
+                            }
+                        },
 
-                            },
+
+                        x: {
 
                             title: {
 
@@ -724,20 +877,23 @@ function updateKpChart(
 
                                 text: "UTC",
 
-                                color:
-                                    "#71829b"
-
+                                color: "#9aabc2"
                             },
+
 
                             grid: {
 
                                 color:
                                     "rgba(120,150,190,0.05)"
+                            },
 
+
+                            ticks: {
+
+                                color:
+                                    "#71829b"
                             }
-
                         }
-
                     },
 
 
@@ -749,68 +905,83 @@ function updateKpChart(
 
                                 color:
                                     "#9aabc2"
-
                             }
-
                         }
-
                     }
-
                 }
-
             }
         );
-
 }
 
 
-/* ==================================================
-   ERROR DISPLAY
-   ================================================== */
+/*
+========================================================
+ INITIAL LOAD
+========================================================
+*/
 
-function showError(message) {
+async function loadAllData() {
 
-    console.error(message);
+    console.log(
+        "===================================="
+    );
+
+    console.log(
+        "Loading real-time space weather data..."
+    );
+
+    console.log(
+        "===================================="
+    );
 
 
-    const errorElement =
-        document.getElementById(
-            "dataError"
-        );
+    /*
+    Load all three NOAA feeds.
+
+    Promise.allSettled means that if one
+    NOAA endpoint fails, the others can
+    still update the dashboard.
+    */
+
+    await Promise.allSettled([
+
+        loadMagneticData(),
+
+        loadWindData(),
+
+        loadKpData()
+
+    ]);
 
 
-    if (errorElement) {
-
-        errorElement.textContent =
-            message;
-
-        errorElement.style.display =
-            "block";
-
-    }
-
+    console.log(
+        "Space weather update complete."
+    );
 }
 
 
-/* ==================================================
-   START
-   ================================================== */
+/*
+========================================================
+ START
+========================================================
+*/
 
-loadMagneticData();
-
-loadKpData();
+loadAllData();
 
 
-/* ==================================================
-   UPDATE EVERY MINUTE
-   ================================================== */
+/*
+========================================================
+ AUTO UPDATE
+========================================================
+
+Update every 60 seconds.
+
+NOAA's real-time solar-wind feeds are
+minute-resolution feeds.
+========================================================
+*/
 
 setInterval(
-    loadMagneticData,
-    60 * 1000
-);
-
-setInterval(
-    loadKpData,
+    loadAllData,
     60 * 1000
 );
