@@ -1,43 +1,18 @@
 const MAG_URL =
-    "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json";
-
-const SPEED_URL =
-    "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json";
+    "https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json";
 
 const KP_URL =
     "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json";
+
+const SPEED_URL =
+    "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json";
 
 let chart = null;
 
 
 /* =====================================================
-   HELPERS
+   FETCH
 ===================================================== */
-
-function setText(id, value) {
-
-    const el = document.getElementById(id);
-
-    if (el) {
-        el.textContent = value;
-    }
-}
-
-
-function setStatus(message, error = false) {
-
-    const el = document.getElementById("status");
-
-    if (!el) return;
-
-    el.textContent = message;
-
-    el.className =
-        error
-            ? "status error"
-            : "status ok";
-}
-
 
 async function getJSON(url) {
 
@@ -49,7 +24,6 @@ async function getJSON(url) {
     );
 
     if (!response.ok) {
-
         throw new Error(
             "HTTP " + response.status
         );
@@ -59,32 +33,43 @@ async function getJSON(url) {
 }
 
 
-function showDiagnostic(data) {
+/* =====================================================
+   TEXT
+===================================================== */
 
-    const el =
-        document.getElementById("diagnostic");
+function setText(id, value) {
 
-    if (!el) return;
+    const element =
+        document.getElementById(id);
 
-    try {
-
-        el.textContent =
-            JSON.stringify(
-                data,
-                null,
-                2
-            );
-
-    } catch {
-
-        el.textContent =
-            String(data);
+    if (element) {
+        element.textContent = value;
     }
 }
 
 
 /* =====================================================
-   MAGNETIC FIELD
+   STATUS
+===================================================== */
+
+function setStatus(message, error = false) {
+
+    const element =
+        document.getElementById("status");
+
+    if (!element) return;
+
+    element.textContent = message;
+
+    element.className =
+        error
+            ? "status error"
+            : "status ok";
+}
+
+
+/* =====================================================
+   MAGNETIC DATA
 ===================================================== */
 
 async function loadMagnetic() {
@@ -96,30 +81,22 @@ async function loadMagnetic() {
 
 
         console.log(
-            "NOAA MAGNETIC:",
+            "NOAA MAG DATA:",
             data
         );
 
 
-        showDiagnostic(data);
-
-
         /*
-        NOAA currently returns something like:
-
-        [
-            {
-                "bt": 5,
-                "bz_gsm": 0,
-                "time_tag": "2026-09-18T23:14:00Z"
-            }
-        ]
-        */
+         * NOAA RTSW data can contain rows with
+         * the column names in the first row.
+         *
+         * We find the columns dynamically.
+         */
 
 
         if (
             !Array.isArray(data) ||
-            data.length === 0
+            data.length < 2
         ) {
 
             throw new Error(
@@ -128,48 +105,198 @@ async function loadMagnetic() {
         }
 
 
-        const record =
-            data[data.length - 1];
+        const header =
+            data[0];
 
 
-        if (
-            !record ||
-            typeof record !== "object"
+        console.log(
+            "NOAA MAG HEADER:",
+            header
+        );
+
+
+        /*
+         * Find a column by several possible names.
+         */
+
+        function findColumn(names) {
+
+            for (
+                let i = 0;
+                i < header.length;
+                i++
+            ) {
+
+                const name =
+                    String(header[i])
+                        .toLowerCase()
+                        .trim();
+
+
+                if (
+                    names.includes(name)
+                ) {
+
+                    return i;
+                }
+            }
+
+
+            return -1;
+        }
+
+
+        const timeColumn =
+            findColumn([
+                "time_tag",
+                "time",
+                "timestamp"
+            ]);
+
+
+        const byColumn =
+            findColumn([
+                "by_gsm",
+                "by",
+                "b_y"
+            ]);
+
+
+        const bzColumn =
+            findColumn([
+                "bz_gsm",
+                "bz",
+                "b_z"
+            ]);
+
+
+        const btColumn =
+            findColumn([
+                "bt",
+                "bt_gsm",
+                "b_t"
+            ]);
+
+
+        console.log(
+            "MAG COLUMNS:",
+            {
+                timeColumn,
+                byColumn,
+                bzColumn,
+                btColumn
+            }
+        );
+
+
+        /*
+         * Find the newest row that has
+         * actual magnetic values.
+         */
+
+        let latest = null;
+
+
+        for (
+            let i = data.length - 1;
+            i >= 1;
+            i--
         ) {
 
+            const row =
+                data[i];
+
+
+            if (
+                !Array.isArray(row)
+            ) {
+                continue;
+            }
+
+
+            const by =
+                byColumn >= 0
+                    ? Number(
+                        row[byColumn]
+                    )
+                    : NaN;
+
+
+            const bz =
+                bzColumn >= 0
+                    ? Number(
+                        row[bzColumn]
+                    )
+                    : NaN;
+
+
+            const bt =
+                btColumn >= 0
+                    ? Number(
+                        row[btColumn]
+                    )
+                    : NaN;
+
+
+            if (
+                Number.isFinite(by) ||
+                Number.isFinite(bz) ||
+                Number.isFinite(bt)
+            ) {
+
+                latest = {
+
+                    by,
+
+                    bz,
+
+                    bt,
+
+                    time:
+                        timeColumn >= 0
+                            ? row[timeColumn]
+                            : null
+                };
+
+
+                break;
+            }
+        }
+
+
+        if (!latest) {
+
             throw new Error(
-                "Invalid NOAA magnetic response"
+                "No valid magnetic row found"
             );
         }
 
 
         console.log(
-            "NOAA magnetic record:",
-            record
+            "LATEST MAG:",
+            latest
         );
 
 
         /* =================================================
-           BT
+           BY
         ================================================= */
 
-        const bt =
-            Number(record.bt);
-
-
         if (
-            Number.isFinite(bt)
+            Number.isFinite(
+                latest.by
+            )
         ) {
 
             setText(
-                "bt",
-                bt.toFixed(1)
+                "by",
+                latest.by.toFixed(1)
             );
 
         } else {
 
             setText(
-                "bt",
+                "by",
                 "--"
             );
         }
@@ -179,19 +306,15 @@ async function loadMagnetic() {
            BZ
         ================================================= */
 
-        const bz =
-            Number(
-                record.bz_gsm
-            );
-
-
         if (
-            Number.isFinite(bz)
+            Number.isFinite(
+                latest.bz
+            )
         ) {
 
             setText(
                 "bz",
-                bz.toFixed(1)
+                latest.bz.toFixed(1)
             );
 
         } else {
@@ -204,41 +327,24 @@ async function loadMagnetic() {
 
 
         /* =================================================
-           BY
+           BT
         ================================================= */
 
-        /*
-        The current NOAA summary endpoint does NOT
-        provide By.
-
-        We therefore check several possible names,
-        but do not fail if none exists.
-        */
-
-        const byValue =
-            record.by ??
-            record.by_gsm ??
-            record.b_y ??
-            record.By;
-
-
-        const by =
-            Number(byValue);
-
-
         if (
-            Number.isFinite(by)
+            Number.isFinite(
+                latest.bt
+            )
         ) {
 
             setText(
-                "by",
-                by.toFixed(1)
+                "bt",
+                latest.bt.toFixed(1)
             );
 
         } else {
 
             setText(
-                "by",
+                "bt",
                 "--"
             );
         }
@@ -248,33 +354,21 @@ async function loadMagnetic() {
            CLOCK ANGLE
         ================================================= */
 
-        /*
-        A true IMF clock angle requires both
-        By and Bz.
-
-        If By isn't supplied by NOAA, we can still
-        display a useful Bz direction but we don't
-        pretend we have a complete clock angle.
-        */
-
         if (
-            Number.isFinite(by) &&
-            Number.isFinite(bz)
+            Number.isFinite(latest.by) &&
+            Number.isFinite(latest.bz)
         ) {
 
             let angle =
                 Math.atan2(
-                    by,
-                    bz
+                    latest.by,
+                    latest.bz
                 ) *
                 180 /
                 Math.PI;
 
 
-            if (
-                angle < 0
-            ) {
-
+            if (angle < 0) {
                 angle += 360;
             }
 
@@ -306,20 +400,6 @@ async function loadMagnetic() {
                 "angle",
                 "--"
             );
-
-
-            const needle =
-                document.getElementById(
-                    "needle"
-                );
-
-
-            if (needle) {
-
-                needle.style.transform =
-                    "translate(-50%, -100%) " +
-                    "rotate(0deg)";
-            }
         }
 
 
@@ -327,14 +407,14 @@ async function loadMagnetic() {
            TIME
         ================================================= */
 
-        const time =
-            record.time_tag;
-
-
-        if (time) {
+        if (
+            latest.time
+        ) {
 
             const date =
-                new Date(time);
+                new Date(
+                    latest.time
+                );
 
 
             if (
@@ -351,20 +431,15 @@ async function loadMagnetic() {
         }
 
 
-        /*
-        Magnetic request succeeded even if By
-        is unavailable.
-        */
-
         setStatus(
-            "✓ NOAA magnetic data connected"
+            "✓ NOAA live data connected"
         );
 
 
     } catch (error) {
 
         console.error(
-            "NOAA magnetic error:",
+            "MAGNETIC ERROR:",
             error
         );
 
@@ -379,7 +454,7 @@ async function loadMagnetic() {
 
 
 /* =====================================================
-   SOLAR WIND SPEED
+   SOLAR WIND
 ===================================================== */
 
 async function loadSpeed() {
@@ -405,10 +480,7 @@ async function loadSpeed() {
 
 
         if (!record) {
-
-            throw new Error(
-                "No solar wind data"
-            );
+            return;
         }
 
 
@@ -418,25 +490,35 @@ async function loadSpeed() {
             );
 
 
-        /*
-        Your current HTML doesn't contain a
-        speed card, so don't try to display
-        it if the element doesn't exist.
-        */
-
         if (
             Number.isFinite(speed)
         ) {
 
+            /*
+             * Your current HTML does not have
+             * a speed element.
+             *
+             * This still logs the value.
+             */
+
+            console.log(
+                "SOLAR WIND:",
+                speed,
+                "km/s"
+            );
+
+
+            /*
+             * If you later add:
+             *
+             * <span id="speed"></span>
+             *
+             * it will automatically appear.
+             */
+
             setText(
                 "speed",
                 speed.toFixed(0)
-            );
-
-            console.log(
-                "Solar wind speed:",
-                speed,
-                "km/s"
             );
         }
 
@@ -444,7 +526,7 @@ async function loadSpeed() {
     } catch (error) {
 
         console.error(
-            "NOAA solar wind error:",
+            "SOLAR WIND ERROR:",
             error
         );
     }
@@ -452,7 +534,7 @@ async function loadSpeed() {
 
 
 /* =====================================================
-   KP INDEX
+   KP
 ===================================================== */
 
 async function loadKp() {
@@ -477,32 +559,28 @@ async function loadKp() {
         ) {
 
             throw new Error(
-                "NOAA Kp response is empty"
+                "Kp data empty"
             );
         }
 
 
-        const headers =
+        const header =
             data[0];
 
 
-        let kpIndex = -1;
+        let kpColumn = -1;
 
-        let timeIndex = -1;
+        let timeColumn = -1;
 
-
-        /*
-        Find Kp and time columns.
-        */
 
         for (
             let i = 0;
-            i < headers.length;
+            i < header.length;
             i++
         ) {
 
             const name =
-                String(headers[i])
+                String(header[i])
                     .toLowerCase()
                     .trim();
 
@@ -512,7 +590,7 @@ async function loadKp() {
                 name === "kp"
             ) {
 
-                kpIndex = i;
+                kpColumn = i;
             }
 
 
@@ -520,23 +598,23 @@ async function loadKp() {
                 name === "time_tag"
             ) {
 
-                timeIndex = i;
+                timeColumn = i;
             }
         }
 
 
         /*
-        Fallback.
-        */
+         * Fallback.
+         */
 
         if (
-            kpIndex === -1
+            kpColumn === -1
         ) {
 
-            kpIndex =
-                headers.findIndex(
-                    header =>
-                        String(header)
+            kpColumn =
+                header.findIndex(
+                    h =>
+                        String(h)
                             .toLowerCase()
                             .includes("kp")
                 );
@@ -544,7 +622,7 @@ async function loadKp() {
 
 
         if (
-            kpIndex === -1
+            kpColumn === -1
         ) {
 
             throw new Error(
@@ -569,14 +647,13 @@ async function loadKp() {
             if (
                 !Array.isArray(row)
             ) {
-
                 continue;
             }
 
 
             const kp =
                 Number(
-                    row[kpIndex]
+                    row[kpColumn]
                 );
 
 
@@ -586,11 +663,11 @@ async function loadKp() {
 
                 records.push({
 
-                    kp: kp,
+                    kp,
 
                     time:
-                        timeIndex >= 0
-                            ? row[timeIndex]
+                        timeColumn >= 0
+                            ? row[timeColumn]
                             : null
                 });
             }
@@ -602,14 +679,10 @@ async function loadKp() {
         ) {
 
             throw new Error(
-                "No valid Kp measurements"
+                "No Kp measurements"
             );
         }
 
-
-        /*
-        Latest Kp.
-        */
 
         const latest =
             records[
@@ -622,10 +695,6 @@ async function loadKp() {
             latest.kp.toFixed(1)
         );
 
-
-        /*
-        Kp time.
-        */
 
         if (
             latest.time
@@ -651,29 +720,22 @@ async function loadKp() {
         }
 
 
-        /*
-        Chart.
-        */
-
         const recent =
             records.slice(-40);
 
 
         const labels =
             recent.map(
-                record => {
+                item => {
 
-                    if (
-                        !record.time
-                    ) {
-
+                    if (!item.time) {
                         return "";
                     }
 
 
                     const date =
                         new Date(
-                            record.time
+                            item.time
                         );
 
 
@@ -701,8 +763,7 @@ async function loadKp() {
 
         const values =
             recent.map(
-                record =>
-                    record.kp
+                item => item.kp
             );
 
 
@@ -715,7 +776,7 @@ async function loadKp() {
     } catch (error) {
 
         console.error(
-            "NOAA Kp error:",
+            "KP ERROR:",
             error
         );
 
@@ -745,8 +806,7 @@ function createChart(
 
     if (
         !canvas ||
-        typeof Chart ===
-        "undefined"
+        typeof Chart === "undefined"
     ) {
 
         return;
@@ -754,7 +814,6 @@ function createChart(
 
 
     if (chart) {
-
         chart.destroy();
     }
 
@@ -768,7 +827,7 @@ function createChart(
 
                 data: {
 
-                    labels: labels,
+                    labels,
 
                     datasets: [
 
@@ -787,9 +846,6 @@ function createChart(
                             borderWidth: 2,
 
                             pointRadius: 3,
-
-                            pointBackgroundColor:
-                                "#4bbcff",
 
                             tension: 0.25,
 
@@ -864,20 +920,10 @@ function createChart(
 
 
 /* =====================================================
-   UPDATE
+   UPDATE EVERYTHING
 ===================================================== */
 
-async function updateAll() {
-
-    console.log(
-        "NOAA update:",
-        new Date().toISOString()
-    );
-
-
-    /*
-    Run independently.
-    */
+function updateAll() {
 
     loadMagnetic();
 
@@ -895,7 +941,7 @@ updateAll();
 
 
 /* =====================================================
-   REFRESH EVERY MINUTE
+   REFRESH EVERY 60 SECONDS
 ===================================================== */
 
 setInterval(
