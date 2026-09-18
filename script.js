@@ -7,13 +7,11 @@ const KP_URL =
 let kpChart = null;
 
 
-/*
---------------------------------------------------
-HELPERS
---------------------------------------------------
-*/
+/* ==================================================
+   GENERIC FETCH
+   ================================================== */
 
-async function fetchJson(url) {
+async function getJSON(url) {
 
     const response = await fetch(url, {
         cache: "no-store"
@@ -21,7 +19,7 @@ async function fetchJson(url) {
 
     if (!response.ok) {
         throw new Error(
-            `HTTP ${response.status} ${response.statusText}`
+            `HTTP ${response.status}: ${response.statusText}`
         );
     }
 
@@ -29,162 +27,73 @@ async function fetchJson(url) {
 }
 
 
-/*
-Convert NOAA data into an array of objects.
+/* ==================================================
+   FIND VALUE IN NOAA RECORD
+   ================================================== */
 
-Supports:
-
-1. Array of objects:
-   [
-       { time_tag: "...", Bz: -5.2, ... }
-   ]
-
-2. Header + rows:
-   [
-       ["time_tag", "Bz", "By"],
-       ["...", "-5.2", "2.1"]
-   ]
-*/
-
-function normaliseData(data) {
-
-    if (!Array.isArray(data) || data.length === 0) {
-        return [];
-    }
-
-
-    // Already an array of objects
-    if (
-        typeof data[0] === "object" &&
-        !Array.isArray(data[0])
-    ) {
-
-        return data;
-    }
-
-
-    // Header + rows
-    if (Array.isArray(data[0])) {
-
-        const headers = data[0];
-
-        return data.slice(1).map(row => {
-
-            const record = {};
-
-            headers.forEach((header, index) => {
-
-                record[header] = row[index];
-
-            });
-
-            return record;
-
-        });
-    }
-
-
-    return [];
-}
-
-
-/*
-Find a property regardless of minor
-capitalisation differences.
-*/
-
-function getField(record, names) {
+function getValue(record, names) {
 
     for (const name of names) {
 
         if (
             record[name] !== undefined &&
-            record[name] !== null
+            record[name] !== null &&
+            record[name] !== ""
         ) {
-
             return record[name];
-
         }
+
     }
 
-
-    // Case-insensitive fallback
-
-    const keys = Object.keys(record);
-
-    for (const wanted of names) {
-
-        const found = keys.find(
-            key =>
-                key.toLowerCase() ===
-                wanted.toLowerCase()
-        );
-
-        if (found) {
-            return record[found];
-        }
-    }
-
-
-    return undefined;
+    return null;
 }
 
 
-/*
---------------------------------------------------
-LOAD MAGNETIC FIELD DATA
---------------------------------------------------
-*/
+/* ==================================================
+   MAGNETIC FIELD
+   ================================================== */
 
 async function loadMagneticData() {
 
     try {
 
-        const data =
-            await fetchJson(MAG_URL);
+        const data = await getJSON(MAG_URL);
+
+        console.log("NOAA MAG DATA:", data);
 
 
-        const records =
-            normaliseData(data);
-
-
-        if (records.length === 0) {
-            throw new Error("No magnetic data received");
+        if (!Array.isArray(data) || data.length === 0) {
+            throw new Error("NOAA returned no magnetic data");
         }
 
 
         /*
-        Find the latest valid record.
-
-        Sometimes the final NOAA record can contain
-        null values, so work backwards until we find
-        a usable record.
+        NOAA normally returns an array of objects.
         */
 
         let latest = null;
 
-        for (
-            let i = records.length - 1;
-            i >= 0;
-            i--
-        ) {
 
-            const record = records[i];
+        for (let i = data.length - 1; i >= 0; i--) {
 
-            const by =
-                Number(
-                    getField(record, ["By", "by"])
-                );
+            const item = data[i];
 
-            const bz =
-                Number(
-                    getField(record, ["Bz", "bz"])
-                );
+            if (!item || typeof item !== "object") {
+                continue;
+            }
 
-            const bt =
-                Number(
-                    getField(record, ["Bt", "bt"])
-                );
+
+            const by = Number(
+                getValue(item, ["By", "by"])
+            );
+
+            const bz = Number(
+                getValue(item, ["Bz", "bz"])
+            );
+
+            const bt = Number(
+                getValue(item, ["Bt", "bt"])
+            );
 
 
             if (
@@ -193,43 +102,48 @@ async function loadMagneticData() {
                 Number.isFinite(bt)
             ) {
 
-                latest = record;
-                break;
+                latest = item;
 
+                break;
             }
+
         }
 
 
         if (!latest) {
             throw new Error(
-                "No valid magnetic field record found"
+                "Could not find valid By/Bz/Bt values"
             );
         }
 
 
-        /*
-        Get magnetic field values
-        */
+        const by = Number(
+            getValue(latest, ["By", "by"])
+        );
 
-        const by =
-            Number(
-                getField(latest, ["By", "by"])
-            );
+        const bz = Number(
+            getValue(latest, ["Bz", "bz"])
+        );
 
-        const bz =
-            Number(
-                getField(latest, ["Bz", "bz"])
-            );
-
-        const bt =
-            Number(
-                getField(latest, ["Bt", "bt"])
-            );
+        const bt = Number(
+            getValue(latest, ["Bt", "bt"])
+        );
 
 
-        /*
-        Update By
-        */
+        console.log(
+            "Latest IMF:",
+            {
+                By: by,
+                Bz: bz,
+                Bt: bt,
+                record: latest
+            }
+        );
+
+
+        /* -----------------------------
+           By
+        ----------------------------- */
 
         const byElement =
             document.getElementById("by");
@@ -245,18 +159,20 @@ async function loadMagneticData() {
         }
 
 
-        /*
-        Update Bz
-        */
+        /* -----------------------------
+           Bz
+        ----------------------------- */
 
         const bzElement =
             document.getElementById("bz");
 
-        const bzElement2 =
+        const bz2Element =
             document.getElementById("bz2");
 
 
-        if (Number.isFinite(bz)) {
+        if (
+            Number.isFinite(bz)
+        ) {
 
             if (bzElement) {
 
@@ -265,10 +181,9 @@ async function loadMagneticData() {
 
             }
 
+            if (bz2Element) {
 
-            if (bzElement2) {
-
-                bzElement2.textContent =
+                bz2Element.textContent =
                     bz.toFixed(1);
 
             }
@@ -276,9 +191,9 @@ async function loadMagneticData() {
         }
 
 
-        /*
-        Update Bt
-        */
+        /* -----------------------------
+           Bt
+        ----------------------------- */
 
         const btElement =
             document.getElementById("bt");
@@ -294,16 +209,9 @@ async function loadMagneticData() {
         }
 
 
-        /*
-        IMF CLOCK ANGLE
-
-        atan2(By, Bz)
-
-        0°   = north
-        90°  = east
-        180° = south
-        270° = west
-        */
+        /* -----------------------------
+           CLOCK ANGLE
+        ----------------------------- */
 
         if (
             Number.isFinite(by) &&
@@ -311,8 +219,9 @@ async function loadMagneticData() {
         ) {
 
             let angle =
-                Math.atan2(by, bz)
-                * 180 / Math.PI;
+                Math.atan2(by, bz) *
+                180 /
+                Math.PI;
 
 
             if (angle < 0) {
@@ -321,16 +230,15 @@ async function loadMagneticData() {
 
 
             updateClock(angle);
-
         }
 
 
-        /*
-        Timestamp
-        */
+        /* -----------------------------
+           TIME
+        ----------------------------- */
 
         const timestamp =
-            getField(
+            getValue(
                 latest,
                 [
                     "time_tag",
@@ -355,7 +263,11 @@ async function loadMagneticData() {
                 new Date(timestamp);
 
 
-            if (!Number.isNaN(date.getTime())) {
+            if (
+                !Number.isNaN(
+                    date.getTime()
+                )
+            ) {
 
                 updateElement.textContent =
                     date.toUTCString();
@@ -368,19 +280,23 @@ async function loadMagneticData() {
     } catch (error) {
 
         console.error(
-            "Magnetic data error:",
+            "MAGNETIC DATA ERROR:",
             error
         );
 
+        showError(
+            "Magnetic data error: " +
+            error.message
+        );
+
     }
+
 }
 
 
-/*
---------------------------------------------------
-CLOCK ANGLE
---------------------------------------------------
-*/
+/* ==================================================
+   CLOCK
+   ================================================== */
 
 function updateClock(angle) {
 
@@ -410,43 +326,51 @@ function updateClock(angle) {
             angle.toFixed(1);
 
     }
+
 }
 
 
-/*
---------------------------------------------------
-LOAD Kp DATA
---------------------------------------------------
-*/
+/* ==================================================
+   KP DATA
+   ================================================== */
 
 async function loadKpData() {
 
     try {
 
-        const data =
-            await fetchJson(KP_URL);
+        const data = await getJSON(KP_URL);
+
+        console.log("NOAA KP DATA:", data);
 
 
-        const records =
-            normaliseData(data);
+        if (!Array.isArray(data) || data.length === 0) {
 
+            throw new Error(
+                "NOAA returned no Kp data"
+            );
 
-        if (records.length === 0) {
-            throw new Error("No Kp data received");
         }
 
 
         /*
-        Keep only records with a valid Kp value.
+        Find records with a Kp value.
         */
 
-        const validRecords =
-            records.filter(record => {
+        const records =
+            data.filter(item => {
+
+                if (
+                    !item ||
+                    typeof item !== "object"
+                ) {
+                    return false;
+                }
+
 
                 const value =
                     Number(
-                        getField(
-                            record,
+                        getValue(
+                            item,
                             [
                                 "kp_index",
                                 "kp",
@@ -455,33 +379,32 @@ async function loadKpData() {
                         )
                     );
 
+
                 return Number.isFinite(value);
 
             });
 
 
-        if (validRecords.length === 0) {
+        if (records.length === 0) {
 
             throw new Error(
-                "No valid Kp records found"
+                "No valid Kp values found"
             );
 
         }
 
 
         /*
-        Most recent Kp
+        Latest Kp
         */
 
         const latest =
-            validRecords[
-                validRecords.length - 1
-            ];
+            records[records.length - 1];
 
 
         const kp =
             Number(
-                getField(
+                getValue(
                     latest,
                     [
                         "kp_index",
@@ -492,37 +415,44 @@ async function loadKpData() {
             );
 
 
-        const currentKpElement =
+        console.log(
+            "Latest Kp:",
+            kp,
+            latest
+        );
+
+
+        const kpElement =
             document.getElementById(
                 "currentKp"
             );
 
 
         if (
-            currentKpElement &&
+            kpElement &&
             Number.isFinite(kp)
         ) {
 
-            currentKpElement.textContent =
+            kpElement.textContent =
                 kp.toFixed(1);
 
         }
 
 
         /*
-        Last 40 Kp records
+        Last 40 readings
         */
 
         const chartRecords =
-            validRecords.slice(-40);
+            records.slice(-40);
 
 
         const labels =
-            chartRecords.map(record => {
+            chartRecords.map(item => {
 
-                const time =
-                    getField(
-                        record,
+                const timestamp =
+                    getValue(
+                        item,
                         [
                             "time_tag",
                             "timestamp",
@@ -532,7 +462,7 @@ async function loadKpData() {
 
 
                 const date =
-                    new Date(time);
+                    new Date(timestamp);
 
 
                 if (
@@ -559,11 +489,11 @@ async function loadKpData() {
 
 
         const values =
-            chartRecords.map(record => {
+            chartRecords.map(item => {
 
                 return Number(
-                    getField(
-                        record,
+                    getValue(
+                        item,
                         [
                             "kp_index",
                             "kp",
@@ -582,11 +512,11 @@ async function loadKpData() {
 
 
         /*
-        Kp update time
+        Update timestamp
         */
 
-        const latestTime =
-            getField(
+        const timestamp =
+            getValue(
                 latest,
                 [
                     "time_tag",
@@ -596,24 +526,28 @@ async function loadKpData() {
             );
 
 
-        const kpUpdatedElement =
+        const updatedElement =
             document.getElementById(
                 "kpUpdated"
             );
 
 
         if (
-            kpUpdatedElement &&
-            latestTime
+            updatedElement &&
+            timestamp
         ) {
 
             const date =
-                new Date(latestTime);
+                new Date(timestamp);
 
 
-            if (!Number.isNaN(date.getTime())) {
+            if (
+                !Number.isNaN(
+                    date.getTime()
+                )
+            ) {
 
-                kpUpdatedElement.textContent =
+                updatedElement.textContent =
                     "Updated " +
                     date.toUTCString();
 
@@ -625,19 +559,23 @@ async function loadKpData() {
     } catch (error) {
 
         console.error(
-            "Kp data error:",
+            "KP DATA ERROR:",
             error
         );
 
+        showError(
+            "Kp data error: " +
+            error.message
+        );
+
     }
+
 }
 
 
-/*
---------------------------------------------------
-Kp CHART
---------------------------------------------------
-*/
+/* ==================================================
+   CHART
+   ================================================== */
 
 function updateKpChart(
     labels,
@@ -653,7 +591,7 @@ function updateKpChart(
     if (!canvas) {
 
         console.error(
-            "Kp chart canvas #kpChart not found"
+            "Canvas #kpChart was not found"
         );
 
         return;
@@ -661,13 +599,13 @@ function updateKpChart(
     }
 
 
-    /*
-    Make sure Chart.js is loaded.
-    */
-
     if (typeof Chart === "undefined") {
 
         console.error(
+            "Chart.js has not been loaded"
+        );
+
+        showError(
             "Chart.js is not loaded"
         );
 
@@ -676,143 +614,143 @@ function updateKpChart(
     }
 
 
-    /*
-    Destroy previous chart
-    */
-
     if (kpChart) {
 
         kpChart.destroy();
 
-        kpChart = null;
-
     }
 
 
-    /*
-    Create new chart
-    */
-
     kpChart =
-        new Chart(canvas, {
+        new Chart(
+            canvas,
+            {
 
-            type: "line",
+                type: "line",
 
-            data: {
+                data: {
 
-                labels: labels,
+                    labels: labels,
 
-                datasets: [{
+                    datasets: [
 
-                    label: "Kp",
+                        {
 
-                    data: values,
+                            label: "Kp",
 
-                    borderColor:
-                        "#48b7ff",
+                            data: values,
 
-                    backgroundColor:
-                        "rgba(72,183,255,0.12)",
+                            borderColor:
+                                "#48b7ff",
 
-                    borderWidth: 2,
+                            backgroundColor:
+                                "rgba(72,183,255,0.12)",
 
-                    pointRadius: 3,
+                            borderWidth: 2,
 
-                    pointBackgroundColor:
-                        "#48b7ff",
+                            pointRadius: 3,
 
-                    pointBorderColor:
-                        "#48b7ff",
+                            pointBackgroundColor:
+                                "#48b7ff",
 
-                    tension: 0.25,
+                            tension: 0.25,
 
-                    fill: true
+                            fill: true
 
-                }]
+                        }
 
-            },
+                    ]
 
-
-            options: {
-
-                responsive: true,
-
-                maintainAspectRatio: false,
+                },
 
 
-                scales: {
+                options: {
 
-                    y: {
+                    responsive: true,
 
-                        min: 0,
+                    maintainAspectRatio: false,
 
-                        max: 9,
 
-                        title: {
+                    scales: {
 
-                            display: true,
+                        y: {
 
-                            text: "Kp",
+                            min: 0,
 
-                            color: "#71829b"
+                            max: 9,
+
+                            ticks: {
+
+                                stepSize: 1,
+
+                                color:
+                                    "#71829b"
+
+                            },
+
+                            title: {
+
+                                display: true,
+
+                                text: "Kp",
+
+                                color:
+                                    "#71829b"
+
+                            },
+
+                            grid: {
+
+                                color:
+                                    "rgba(120,150,190,0.1)"
+
+                            }
 
                         },
 
-                        grid: {
 
-                            color:
-                                "rgba(120,150,190,0.1)"
+                        x: {
 
-                        },
+                            ticks: {
 
-                        ticks: {
+                                color:
+                                    "#71829b"
 
-                            color: "#71829b",
+                            },
 
-                            stepSize: 1
+                            title: {
+
+                                display: true,
+
+                                text: "UTC",
+
+                                color:
+                                    "#71829b"
+
+                            },
+
+                            grid: {
+
+                                color:
+                                    "rgba(120,150,190,0.05)"
+
+                            }
 
                         }
 
                     },
 
 
-                    x: {
+                    plugins: {
 
-                        title: {
+                        legend: {
 
-                            display: true,
+                            labels: {
 
-                            text: "UTC",
+                                color:
+                                    "#9aabc2"
 
-                            color: "#71829b"
-
-                        },
-
-                        grid: {
-
-                            color:
-                                "rgba(120,150,190,0.05)"
-
-                        },
-
-                        ticks: {
-
-                            color: "#71829b"
-
-                        }
-
-                    }
-
-                },
-
-
-                plugins: {
-
-                    legend: {
-
-                        labels: {
-
-                            color: "#9aabc2"
+                            }
 
                         }
 
@@ -821,36 +759,56 @@ function updateKpChart(
                 }
 
             }
-
-        });
+        );
 
 }
 
 
-/*
---------------------------------------------------
-INITIAL LOAD
---------------------------------------------------
-*/
+/* ==================================================
+   ERROR DISPLAY
+   ================================================== */
+
+function showError(message) {
+
+    console.error(message);
+
+
+    const errorElement =
+        document.getElementById(
+            "dataError"
+        );
+
+
+    if (errorElement) {
+
+        errorElement.textContent =
+            message;
+
+        errorElement.style.display =
+            "block";
+
+    }
+
+}
+
+
+/* ==================================================
+   START
+   ================================================== */
 
 loadMagneticData();
 
 loadKpData();
 
 
-/*
---------------------------------------------------
-AUTO UPDATE
-
-Every 60 seconds
---------------------------------------------------
-*/
+/* ==================================================
+   UPDATE EVERY MINUTE
+   ================================================== */
 
 setInterval(
     loadMagneticData,
     60 * 1000
 );
-
 
 setInterval(
     loadKpData,
