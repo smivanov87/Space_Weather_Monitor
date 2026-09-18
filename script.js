@@ -1,17 +1,17 @@
 const MAG_URL =
-    "https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json";
-
-const KP_URL =
-    "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json";
+    "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json";
 
 const SPEED_URL =
     "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json";
+
+const KP_URL =
+    "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json";
 
 let chart = null;
 
 
 /* =====================================================
-   BASIC HELPERS
+   HELPERS
 ===================================================== */
 
 function setText(id, value) {
@@ -59,7 +59,7 @@ async function getJSON(url) {
 }
 
 
-function showDiagnostic(data) {
+function diagnostic(data) {
 
     const el =
         document.getElementById("diagnostic");
@@ -84,378 +84,103 @@ function showDiagnostic(data) {
 
 
 /* =====================================================
-   NORMALIZE NOAA MAGNETIC RESPONSE
-===================================================== */
-
-function normalizeMagneticData(data) {
-
-    /*
-    Case 1:
-    NOAA returns an array of objects.
-
-    Example:
-
-    [
-        {
-            "time_tag": "...",
-            "by_gsm": 2.1,
-            "bz_gsm": -4.2,
-            "bt": 6.3
-        }
-    ]
-    */
-
-    if (
-        Array.isArray(data) &&
-        data.length > 0 &&
-        data[0] &&
-        typeof data[0] === "object" &&
-        !Array.isArray(data[0])
-    ) {
-
-        return data;
-    }
-
-
-    /*
-    Case 2:
-    NOAA returns:
-
-    [
-        ["time_tag", "by_gsm", "bz_gsm", "bt"],
-        ["...", 2.1, -4.2, 6.3]
-    ]
-    */
-
-    if (
-        Array.isArray(data) &&
-        Array.isArray(data[0])
-    ) {
-
-        const headers = data[0];
-
-        return data
-            .slice(1)
-            .map(row => {
-
-                const object = {};
-
-                headers.forEach(
-                    (header, index) => {
-
-                        object[
-                            String(header)
-                        ] = row[index];
-
-                    }
-                );
-
-                return object;
-            });
-    }
-
-
-    /*
-    Case 3:
-    NOAA returns one object.
-    */
-
-    if (
-        data &&
-        typeof data === "object"
-    ) {
-
-        return [data];
-    }
-
-
-    return [];
-}
-
-
-/* =====================================================
-   GET VALUE FROM OBJECT
-===================================================== */
-
-function getField(
-    object,
-    names
-) {
-
-    /*
-    First try exact names.
-    */
-
-    for (
-        const name of names
-    ) {
-
-        if (
-            Object.prototype.hasOwnProperty.call(
-                object,
-                name
-            )
-        ) {
-
-            return object[name];
-        }
-    }
-
-
-    /*
-    Then try case-insensitive
-    matching.
-    */
-
-    const keys =
-        Object.keys(object);
-
-
-    for (
-        const key of keys
-    ) {
-
-        const lower =
-            key
-                .toLowerCase()
-                .trim();
-
-
-        for (
-            const name of names
-        ) {
-
-            if (
-                lower ===
-                name.toLowerCase()
-            ) {
-
-                return object[key];
-            }
-        }
-    }
-
-
-    return undefined;
-}
-
-
-/* =====================================================
-   MAGNETIC DATA
+   MAGNETIC FIELD
 ===================================================== */
 
 async function loadMagnetic() {
 
     try {
 
-        const raw =
-            await getJSON(
-                MAG_URL
-            );
+        const data =
+            await getJSON(MAG_URL);
 
 
         console.log(
-            "================================"
-        );
-
-        console.log(
-            "NOAA MAGNETIC RAW RESPONSE"
-        );
-
-        console.log(
-            raw
-        );
-
-        console.log(
-            "================================"
+            "NOAA MAGNETIC SUMMARY:",
+            data
         );
 
 
-        showDiagnostic(raw);
+        diagnostic(data);
 
 
-        const records =
-            normalizeMagneticData(
-                raw
-            );
+        /*
+        NOAA's summary endpoint can return
+        either an object or an array.
+        */
+
+        let current =
+            Array.isArray(data)
+                ? data[0]
+                : data;
 
 
-        console.log(
-            "Normalized magnetic records:",
-            records
-        );
-
-
-        if (
-            records.length === 0
-        ) {
+        if (!current) {
 
             throw new Error(
-                "NOAA returned no magnetic records"
+                "No magnetic data returned"
             );
         }
 
 
         /*
-        Look from newest to oldest.
+        Print the exact NOAA fields.
+        This is useful if NOAA changes
+        the endpoint format.
         */
 
-        let current = null;
+        console.log(
+            "MAGNETIC FIELDS:",
+            Object.keys(current)
+        );
 
 
-        for (
-            let i =
-                records.length - 1;
-            i >= 0;
-            i--
-        ) {
+        /*
+        NOAA magnetic summary normally
+        provides these values.
+        */
 
-            const record =
-                records[i];
-
-
-            if (
-                !record ||
-                typeof record !== "object"
-            ) {
-
-                continue;
-            }
-
-
-            const byValue =
-                getField(
-                    record,
-                    [
-                        "by_gsm",
-                        "By_gsm",
-                        "BY_GSM",
-                        "by",
-                        "By",
-                        "BY"
-                    ]
-                );
-
-
-            const bzValue =
-                getField(
-                    record,
-                    [
-                        "bz_gsm",
-                        "Bz_gsm",
-                        "BZ_GSM",
-                        "bz",
-                        "Bz",
-                        "BZ"
-                    ]
-                );
-
-
-            const btValue =
-                getField(
-                    record,
-                    [
-                        "bt",
-                        "Bt",
-                        "BT",
-                        "bt_gsm",
-                        "Bt_gsm",
-                        "BT_GSM"
-                    ]
-                );
-
-
-            const by =
-                Number(byValue);
-
-
-            const bz =
-                Number(bzValue);
-
-
-            const bt =
-                Number(btValue);
-
-
-            /*
-            Accept the record if at least
-            one magnetic field value exists.
-            */
-
-            if (
-                Number.isFinite(by) ||
-                Number.isFinite(bz) ||
-                Number.isFinite(bt)
-            ) {
-
-                const time =
-                    getField(
-                        record,
-                        [
-                            "time_tag",
-                            "time",
-                            "timestamp"
-                        ]
-                    );
-
-
-                current = {
-
-                    by,
-
-                    bz,
-
-                    bt,
-
-                    time
-                };
-
-
-                break;
-            }
-        }
-
-
-        if (!current) {
-
-            /*
-            This is deliberately detailed so
-            we can see exactly what NOAA sent.
-            */
-
-            console.error(
-                "NO MAGNETIC RECORD FOUND"
+        const by =
+            Number(
+                current.b_y
+                ??
+                current.by
+                ??
+                current.By
+                ??
+                current.by_gsm
             );
 
 
-            console.error(
-                "Records:",
-                records
+        const bz =
+            Number(
+                current.b_z
+                ??
+                current.bz
+                ??
+                current.Bz
+                ??
+                current.bz_gsm
             );
 
 
-            if (
-                records[0]
-            ) {
-
-                console.error(
-                    "First NOAA record keys:",
-                    Object.keys(
-                        records[0]
-                    )
-                );
-            }
-
-
-            throw new Error(
-                "No magnetic measurements found. Check Diagnostic Information below."
+        const bt =
+            Number(
+                current.b_t
+                ??
+                current.bt
+                ??
+                current.Bt
             );
-        }
 
 
         console.log(
-            "CURRENT MAGNETIC:",
-            current
+            "CURRENT MAGNETIC VALUES:",
+            {
+                by,
+                bz,
+                bt
+            }
         );
 
 
@@ -464,14 +189,12 @@ async function loadMagnetic() {
         ================================================= */
 
         if (
-            Number.isFinite(
-                current.by
-            )
+            Number.isFinite(by)
         ) {
 
             setText(
                 "by",
-                current.by.toFixed(1)
+                by.toFixed(1)
             );
         }
 
@@ -481,14 +204,12 @@ async function loadMagnetic() {
         ================================================= */
 
         if (
-            Number.isFinite(
-                current.bz
-            )
+            Number.isFinite(bz)
         ) {
 
             setText(
                 "bz",
-                current.bz.toFixed(1)
+                bz.toFixed(1)
             );
         }
 
@@ -498,14 +219,12 @@ async function loadMagnetic() {
         ================================================= */
 
         if (
-            Number.isFinite(
-                current.bt
-            )
+            Number.isFinite(bt)
         ) {
 
             setText(
                 "bt",
-                current.bt.toFixed(1)
+                bt.toFixed(1)
             );
         }
 
@@ -515,26 +234,20 @@ async function loadMagnetic() {
         ================================================= */
 
         if (
-            Number.isFinite(
-                current.by
-            ) &&
-            Number.isFinite(
-                current.bz
-            )
+            Number.isFinite(by) &&
+            Number.isFinite(bz)
         ) {
 
             let angle =
                 Math.atan2(
-                    current.by,
-                    current.bz
+                    by,
+                    bz
                 ) *
                 180 /
                 Math.PI;
 
 
-            if (
-                angle < 0
-            ) {
+            if (angle < 0) {
 
                 angle += 360;
             }
@@ -567,14 +280,18 @@ async function loadMagnetic() {
            TIME
         ================================================= */
 
-        if (
+        const time =
+            current.time_tag
+            ??
             current.time
-        ) {
+            ??
+            current.timestamp;
+
+
+        if (time) {
 
             const date =
-                new Date(
-                    current.time
-                );
+                new Date(time);
 
 
             if (
@@ -592,14 +309,14 @@ async function loadMagnetic() {
 
 
         setStatus(
-            "✓ NOAA live data connected"
+            "✓ NOAA live magnetic data connected"
         );
 
 
     } catch (error) {
 
         console.error(
-            "NOAA magnetic error:",
+            "MAGNETIC ERROR:",
             error
         );
 
@@ -650,6 +367,8 @@ async function loadSpeed() {
         const speed =
             Number(
                 current.proton_speed
+                ??
+                current.speed
             );
 
 
@@ -667,7 +386,7 @@ async function loadSpeed() {
     } catch (error) {
 
         console.error(
-            "Solar wind error:",
+            "SOLAR WIND ERROR:",
             error
         );
     }
@@ -696,7 +415,7 @@ async function loadKp() {
 
         if (
             !Array.isArray(data) ||
-            data.length === 0
+            data.length < 2
         ) {
 
             throw new Error(
@@ -705,96 +424,139 @@ async function loadKp() {
         }
 
 
-        /*
-        Handle both object and
-        table responses.
-        */
-
-        let records =
-            normalizeMagneticData(
-                data
-            );
+        const headers =
+            data[0];
 
 
-        /*
-        If NOAA returns normal objects,
-        use them directly.
-        */
+        let kpIndex = -1;
 
-        const valid =
-            records.filter(
-                record => {
-
-                    const value =
-                        getField(
-                            record,
-                            [
-                                "kp_index",
-                                "kp",
-                                "Kp",
-                                "KP"
-                            ]
-                        );
+        let timeIndex = -1;
 
 
-                    return Number.isFinite(
-                        Number(value)
-                    );
+        headers.forEach(
+            (header, index) => {
+
+                const name =
+                    String(header)
+                        .toLowerCase()
+                        .trim();
+
+
+                if (
+                    name === "kp_index" ||
+                    name === "kp"
+                ) {
+
+                    kpIndex = index;
                 }
-            );
+
+
+                if (
+                    name === "time_tag"
+                ) {
+
+                    timeIndex = index;
+                }
+            }
+        );
 
 
         if (
-            valid.length === 0
+            kpIndex === -1
+        ) {
+
+            kpIndex =
+                headers.findIndex(
+                    header =>
+                        String(header)
+                            .toLowerCase()
+                            .includes("kp")
+                );
+        }
+
+
+        if (
+            kpIndex === -1
         ) {
 
             throw new Error(
-                "No valid Kp measurements"
+                "Kp column not found"
+            );
+        }
+
+
+        const records = [];
+
+
+        for (
+            let i = 1;
+            i < data.length;
+            i++
+        ) {
+
+            const row = data[i];
+
+
+            if (
+                !Array.isArray(row)
+            ) {
+                continue;
+            }
+
+
+            const kp =
+                Number(
+                    row[kpIndex]
+                );
+
+
+            if (
+                Number.isFinite(kp)
+            ) {
+
+                records.push({
+
+                    kp,
+
+                    time:
+                        timeIndex >= 0
+                            ? row[timeIndex]
+                            : null
+                });
+            }
+        }
+
+
+        if (
+            records.length === 0
+        ) {
+
+            throw new Error(
+                "No Kp values found"
             );
         }
 
 
         const latest =
-            valid[
-                valid.length - 1
+            records[
+                records.length - 1
             ];
-
-
-        const kp =
-            Number(
-                getField(
-                    latest,
-                    [
-                        "kp_index",
-                        "kp",
-                        "Kp",
-                        "KP"
-                    ]
-                )
-            );
 
 
         setText(
             "kp",
-            kp.toFixed(1)
+            latest.kp.toFixed(1)
         );
 
 
-        const time =
-            getField(
-                latest,
-                [
-                    "time_tag",
-                    "time",
-                    "timestamp"
-                ]
-            );
-
-
-        if (time) {
+        if (
+            latest.time
+        ) {
 
             const date =
-                new Date(time);
+                new Date(
+                    latest.time
+                );
 
 
             if (
@@ -811,46 +573,27 @@ async function loadKp() {
         }
 
 
-        /*
-        Chart.
-        */
+        /* =============================================
+           CHART
+        ============================================= */
 
         const recent =
-            valid.slice(-40);
+            records.slice(-40);
 
 
         const labels =
             recent.map(
-                record => {
+                item => {
 
-                    const t =
-                        getField(
-                            record,
-                            [
-                                "time_tag",
-                                "time",
-                                "timestamp"
-                            ]
-                        );
-
-
-                    if (!t) {
+                    if (!item.time) {
                         return "";
                     }
 
 
                     const date =
-                        new Date(t);
-
-
-                    if (
-                        Number.isNaN(
-                            date.getTime()
-                        )
-                    ) {
-
-                        return "";
-                    }
+                        new Date(
+                            item.time
+                        );
 
 
                     return date.toLocaleTimeString(
@@ -867,18 +610,7 @@ async function loadKp() {
 
         const values =
             recent.map(
-                record =>
-                    Number(
-                        getField(
-                            record,
-                            [
-                                "kp_index",
-                                "kp",
-                                "Kp",
-                                "KP"
-                            ]
-                        )
-                    )
+                item => item.kp
             );
 
 
@@ -891,7 +623,7 @@ async function loadKp() {
     } catch (error) {
 
         console.error(
-            "Kp error:",
+            "KP ERROR:",
             error
         );
 
@@ -921,8 +653,7 @@ function createChart(
 
     if (
         !canvas ||
-        typeof Chart ===
-        "undefined"
+        typeof Chart === "undefined"
     ) {
 
         return;
@@ -944,7 +675,7 @@ function createChart(
 
                 data: {
 
-                    labels,
+                    labels: labels,
 
                     datasets: [
 
@@ -1049,8 +780,7 @@ async function updateAll() {
 
 
     /*
-    Run independently.
-    One failure doesn't stop the others.
+    Run all three independently.
     */
 
     loadMagnetic();
@@ -1069,7 +799,7 @@ updateAll();
 
 
 /* =====================================================
-   REFRESH EVERY MINUTE
+   UPDATE EVERY MINUTE
 ===================================================== */
 
 setInterval(
