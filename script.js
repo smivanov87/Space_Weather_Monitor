@@ -193,151 +193,53 @@ function numberValue(value) {
  */
 
 async function loadMagnetic() {
-
     try {
+        const data = await getJSON(NOAA.magnetic);
 
-        const data =
-            await getJSON(
-                NOAA.magnetic
-            );
+        console.log("NOAA magnetic data:", data);
 
-        console.log(
-            "NOAA magnetic data:",
-            data
-        );
-
-        showDiagnostic(data);
-
-        if (
-            !Array.isArray(data) ||
-            data.length < 2
-        ) {
-            throw new Error(
-                "NOAA magnetic data is empty"
-            );
+        if (!Array.isArray(data) || data.length === 0) {
+            throw new Error("NOAA magnetic data is empty");
         }
 
-        const headers =
-            data[0];
-
         /*
-         * NOAA magnetic data normally contains
-         * columns such as:
+         * NOAA rtsw_mag_1m.json returns objects like:
          *
-         * time_tag
-         * bx_gsm
-         * by_gsm
-         * bz_gsm
-         * bt
-         */
-
-        const timeIndex =
-            findColumn(
-                headers,
-                [
-                    "time_tag",
-                    "time",
-                    "timestamp"
-                ]
-            );
-
-        const byIndex =
-            findColumn(
-                headers,
-                [
-                    "by_gsm",
-                    "bygsm",
-                    "by",
-                    "b_y"
-                ]
-            );
-
-        const bzIndex =
-            findColumn(
-                headers,
-                [
-                    "bz_gsm",
-                    "bzgsm",
-                    "bz",
-                    "b_z"
-                ]
-            );
-
-        const btIndex =
-            findColumn(
-                headers,
-                [
-                    "bt",
-                    "bt_gsm",
-                    "b_t"
-                ]
-            );
-
-        console.log(
-            "Magnetic columns:",
-            {
-                timeIndex,
-                byIndex,
-                bzIndex,
-                btIndex
-            }
-        );
-
-        /*
-         * Search backwards for the newest
-         * usable measurement.
+         * {
+         *   time_tag: "...",
+         *   bx_gsm: ...,
+         *   by_gsm: ...,
+         *   bz_gsm: ...,
+         *   bt: ...
+         * }
+         *
+         * It does NOT return a header row.
          */
 
         let latest = null;
 
-        for (
-            let i = data.length - 1;
-            i >= 1;
-            i--
-        ) {
+        for (let i = data.length - 1; i >= 0; i--) {
+            const row = data[i];
 
-            const row =
-                data[i];
-
-            if (!Array.isArray(row)) {
+            if (!row || typeof row !== "object") {
                 continue;
             }
 
-            const by =
-                byIndex >= 0
-                    ? numberValue(
-                        row[byIndex]
-                    )
-                    : NaN;
-
-            const bz =
-                bzIndex >= 0
-                    ? numberValue(
-                        row[bzIndex]
-                    )
-                    : NaN;
-
-            const bt =
-                btIndex >= 0
-                    ? numberValue(
-                        row[btIndex]
-                    )
-                    : NaN;
+            const by = Number(row.by_gsm);
+            const bz = Number(row.bz_gsm);
+            const bt = Number(row.bt);
 
             if (
                 Number.isFinite(by) ||
                 Number.isFinite(bz) ||
                 Number.isFinite(bt)
             ) {
-
                 latest = {
                     by,
                     bz,
                     bt,
-                    time:
-                        timeIndex >= 0
-                            ? row[timeIndex]
-                            : null
+                    bx: Number(row.bx_gsm),
+                    time: row.time_tag
                 };
 
                 break;
@@ -345,20 +247,14 @@ async function loadMagnetic() {
         }
 
         if (!latest) {
-            throw new Error(
-                "No valid magnetic measurement found"
-            );
+            throw new Error("No valid magnetic row found");
         }
 
-        console.log(
-            "Latest magnetic measurement:",
-            latest
-        );
+        console.log("Latest magnetic measurement:", latest);
 
         /*
          * BY
          */
-
         setText(
             "by",
             Number.isFinite(latest.by)
@@ -369,7 +265,6 @@ async function loadMagnetic() {
         /*
          * BZ
          */
-
         setText(
             "bz",
             Number.isFinite(latest.bz)
@@ -380,7 +275,6 @@ async function loadMagnetic() {
         /*
          * BT
          */
-
         setText(
             "bt",
             Number.isFinite(latest.bt)
@@ -389,23 +283,21 @@ async function loadMagnetic() {
         );
 
         /*
-         * CLOCK ANGLE
+         * IMF clock angle.
          *
          * atan2(By, Bz)
+         *
+         * Result is converted to 0–360 degrees.
          */
-
         if (
             Number.isFinite(latest.by) &&
             Number.isFinite(latest.bz)
         ) {
-
             let angle =
                 Math.atan2(
                     latest.by,
                     latest.bz
-                ) *
-                180 /
-                Math.PI;
+                ) * 180 / Math.PI;
 
             if (angle < 0) {
                 angle += 360;
@@ -417,42 +309,24 @@ async function loadMagnetic() {
             );
 
             const needle =
-                document.getElementById(
-                    "needle"
-                );
+                document.getElementById("needle");
 
             if (needle) {
-
                 needle.style.transform =
-                    "translate(-50%, -100%) " +
-                    `rotate(${angle}deg)`;
+                    `translate(-50%, -100%) rotate(${angle}deg)`;
             }
-
         } else {
-
-            setText(
-                "angle",
-                "--"
-            );
+            setText("angle", "--");
         }
 
         /*
-         * TIME
+         * Timestamp
          */
-
         if (latest.time) {
-
             const date =
-                new Date(
-                    latest.time
-                );
+                new Date(latest.time);
 
-            if (
-                !Number.isNaN(
-                    date.getTime()
-                )
-            ) {
-
+            if (!Number.isNaN(date.getTime())) {
                 setText(
                     "magTime",
                     date.toUTCString()
@@ -463,9 +337,8 @@ async function loadMagnetic() {
         return true;
 
     } catch (error) {
-
         console.error(
-            "Magnetic data error:",
+            "NOAA magnetic data error:",
             error
         );
 
@@ -478,7 +351,6 @@ async function loadMagnetic() {
         return false;
     }
 }
-
 
 /*
  * ============================================================
