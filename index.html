@@ -1,387 +1,342 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title>Live Space Weather</title>
+    <title>Live Space Weather Dashboard</title>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
 
-    <style>
-        * {
-            box-sizing: border-box;
-        }
+    <script
+        src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
+        defer>
+    </script>
 
-        body {
-            margin: 0;
-            min-height: 100vh;
-            background:
-                radial-gradient(
-                    circle at top,
-                    #0b1b30 0%,
-                    #050b14 55%
-                );
-            color: #e8f1ff;
-            font-family: Arial, Helvetica, sans-serif;
-        }
-
-        .container {
-            width: 94%;
-            max-width: 1100px;
-            margin: auto;
-            padding: 30px 0 50px;
-        }
-
-        h1 {
-            text-align: center;
-            margin: 0;
-            font-size: 34px;
-        }
-
-        .subtitle {
-            text-align: center;
-            color: #8192aa;
-            margin: 8px 0 28px;
-        }
-
-        .status {
-            padding: 12px 15px;
-            margin-bottom: 18px;
-            background: #0d1828;
-            border: 1px solid #1b3049;
-            border-radius: 10px;
-            color: #42e6a4;
-            font-size: 14px;
-        }
-
-        .status.error {
-            color: #ff7070;
-            border-color: #5c2630;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-        }
-
-        .card {
-            background: #0c1726;
-            border: 1px solid #1a2c42;
-            border-radius: 14px;
-            padding: 22px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-        }
-
-        .label {
-            color: #71839c;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
-        }
-
-        .value {
-            font-size: 35px;
-            font-weight: bold;
-            color: #4bbcff;
-        }
-
-        .unit {
-            color: #71839c;
-            margin-left: 4px;
-        }
-
-        .main {
-            display: grid;
-            grid-template-columns: 1fr 1.5fr;
-            gap: 15px;
-            margin-top: 15px;
-        }
-
-        .clock-wrapper {
-            text-align: center;
-        }
-
-        .clock {
-            position: relative;
-            width: 260px;
-            height: 260px;
-            margin: 20px auto;
-            border-radius: 50%;
-            border: 2px solid #24415e;
-            background:
-                radial-gradient(
-                    circle,
-                    #0d1c2e,
-                    #091422
-                );
-        }
-
-        .direction {
-            position: absolute;
-            color: #71839c;
-            font-weight: bold;
-            font-size: 13px;
-        }
-
-        .n {
-            top: 12px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #4bbcff;
-        }
-
-        .e {
-            right: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-        }
-
-        .s {
-            bottom: 12px;
-            left: 50%;
-            transform: translateX(-50%);
-        }
-
-        .w {
-            left: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-        }
-
-        .needle {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            width: 4px;
-            height: 100px;
-            background: #4bbcff;
-            transform-origin: 50% 100%;
-            transform:
-                translate(-50%, -100%)
-                rotate(0deg);
-            border-radius: 5px;
-            box-shadow: 0 0 15px #4bbcff;
-            transition: transform 0.5s ease;
-        }
-
-        .center {
-            position: absolute;
-            width: 10px;
-            height: 10px;
-            background: white;
-            border-radius: 50%;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            box-shadow: 0 0 8px white;
-        }
-
-        .angle {
-            font-size: 28px;
-            color: #4bbcff;
-            font-weight: bold;
-        }
-
-        .time {
-            color: #71839c;
-            margin-top: 10px;
-            font-size: 12px;
-        }
-
-        .chart-box {
-            height: 350px;
-        }
-
-        .raw {
-            margin-top: 20px;
-        }
-
-        .raw pre {
-            background: #02060c;
-            border: 1px solid #18283b;
-            border-radius: 10px;
-            padding: 15px;
-            overflow: auto;
-            max-height: 260px;
-            color: #9fb4cd;
-            font-size: 11px;
-            white-space: pre-wrap;
-        }
-
-        @media (max-width: 850px) {
-            .grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .main {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 550px) {
-            .grid {
-                grid-template-columns: 1fr;
-            }
-
-            h1 {
-                font-size: 28px;
-            }
-
-            .clock {
-                width: 220px;
-                height: 220px;
-            }
-
-            .needle {
-                height: 85px;
-            }
-        }
-    </style>
+    <script src="script.js" defer></script>
 </head>
 
 <body>
 
-<div class="container">
+<main class="container">
 
-    <h1>Live Space Weather</h1>
-
-    <div class="subtitle">
-        NOAA Solar Wind & Geomagnetic Conditions
-    </div>
-
-    <div id="status" class="status">
-        Connecting to NOAA SWPC...
-    </div>
-
-    <div class="grid">
-
-        <div class="card">
-            <div class="label">IMF By</div>
-            <span id="by" class="value">--</span>
-            <span class="unit">nT</span>
+    <header class="header">
+        <div>
+            <h1>Live Space Weather</h1>
+            <p>Solar wind, IMF and geomagnetic conditions</p>
         </div>
 
-        <div class="card">
-            <div class="label">IMF Bz</div>
-            <span id="bz" class="value">--</span>
-            <span class="unit">nT</span>
+        <div class="header-meta">
+            <span id="status" class="status loading">
+                Connecting…
+            </span>
+
+            <span id="lastUpdate" class="muted">
+                —
+            </span>
+        </div>
+    </header>
+
+
+    <!-- =====================================================
+         SOLAR WIND
+    ====================================================== -->
+
+    <section class="section">
+
+        <div class="section-title">
+            <h2>Solar Wind</h2>
+            <span>NOAA RTSW · 1 minute</span>
         </div>
 
-        <div class="card">
-            <div class="label">IMF Bt</div>
-            <span id="bt" class="value">--</span>
-            <span class="unit">nT</span>
+        <div class="cards three">
+
+            <article class="metric">
+                <span>Speed</span>
+                <strong id="speed">—</strong>
+                <small>km/s</small>
+            </article>
+
+            <article class="metric">
+                <span>Temperature</span>
+                <strong id="temperature">—</strong>
+                <small>K</small>
+            </article>
+
+            <article class="metric">
+                <span>Density</span>
+                <strong id="density">—</strong>
+                <small>cm⁻³</small>
+            </article>
+
         </div>
 
-        <div class="card">
-            <div class="label">Solar Wind Speed</div>
-            <span id="speed" class="value">--</span>
-            <span class="unit">km/s</span>
-        </div>
 
-    </div>
+        <div class="charts three">
 
-    <div class="main">
+            <div class="chart-card">
+                <h3>Solar-wind speed</h3>
 
-        <div class="card clock-wrapper">
-
-            <div class="label">
-                IMF Clock Angle
+                <div class="chart-wrap">
+                    <canvas id="speedChart"></canvas>
+                </div>
             </div>
 
-            <div class="clock">
 
-                <div class="direction n">N</div>
-                <div class="direction e">E</div>
-                <div class="direction s">S</div>
-                <div class="direction w">W</div>
+            <div class="chart-card">
+                <h3>Temperature</h3>
 
-                <div id="needle" class="needle"></div>
-
-                <div class="center"></div>
-
+                <div class="chart-wrap">
+                    <canvas id="temperatureChart"></canvas>
+                </div>
             </div>
 
-            <div class="angle">
-                <span id="angle">--</span>°
-            </div>
 
-            <div id="magTime" class="time">
-                Waiting...
+            <div class="chart-card">
+                <h3>Density</h3>
+
+                <div class="chart-wrap">
+                    <canvas id="densityChart"></canvas>
+                </div>
             </div>
 
         </div>
 
-        <div class="card">
+    </section>
 
-            <div style="
-                display:flex;
-                justify-content:space-between;
-                align-items:center;
-                margin-bottom:15px;
-            ">
 
-                <div>
-                    <div class="label">
-                        Geomagnetic Activity
-                    </div>
+    <!-- =====================================================
+         IMF
+    ====================================================== -->
 
-                    <div style="
-                        font-size:18px;
-                        font-weight:bold;
-                    ">
-                        Kp Index
-                    </div>
+    <section class="section">
+
+        <div class="section-title">
+            <h2>Interplanetary Magnetic Field</h2>
+            <span>GSM coordinates</span>
+        </div>
+
+
+        <div class="cards five">
+
+            <article class="metric">
+                <span>Bx</span>
+                <strong id="bx">—</strong>
+                <small>nT</small>
+            </article>
+
+            <article class="metric">
+                <span>By</span>
+                <strong id="by">—</strong>
+                <small>nT</small>
+            </article>
+
+            <article class="metric">
+                <span>Bz</span>
+                <strong id="bz">—</strong>
+                <small>nT</small>
+            </article>
+
+            <article class="metric">
+                <span>Bt</span>
+                <strong id="bt">—</strong>
+                <small>nT</small>
+            </article>
+
+            <article class="metric accent">
+                <span>Clock Angle</span>
+                <strong id="clockAngle">—</strong>
+                <small>degrees</small>
+            </article>
+
+        </div>
+
+
+        <div class="charts three">
+
+            <div class="chart-card wide">
+                <h3>IMF Components</h3>
+
+                <div class="chart-wrap">
+                    <canvas id="imfChart"></canvas>
+                </div>
+            </div>
+
+
+            <div class="chart-card">
+                <h3>Total IMF (Bt)</h3>
+
+                <div class="chart-wrap">
+                    <canvas id="btChart"></canvas>
+                </div>
+            </div>
+
+
+            <div class="chart-card">
+                <h3>Clock Angle</h3>
+
+                <div class="chart-wrap">
+                    <canvas id="clockChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- =====================================================
+         GEOMAGNETIC INDICES
+    ====================================================== -->
+
+    <section class="section">
+
+        <div class="section-title">
+            <h2>Geomagnetic Indices</h2>
+            <span>NOAA / WDC Kyoto</span>
+        </div>
+
+
+        <div class="cards five">
+
+            <article class="metric">
+                <span>Kp</span>
+                <strong id="kp">—</strong>
+                <small>0–9</small>
+            </article>
+
+            <article class="metric">
+                <span>Dst</span>
+                <strong id="dst">—</strong>
+                <small>nT</small>
+            </article>
+
+            <article class="metric">
+                <span>SYM-H</span>
+                <strong id="symh">—</strong>
+                <small>nT</small>
+            </article>
+
+            <article class="metric">
+                <span>AE</span>
+                <strong id="ae">—</strong>
+                <small>nT</small>
+            </article>
+
+            <article class="metric optional">
+                <span>SMR</span>
+                <strong id="smr">—</strong>
+                <small>nT</small>
+            </article>
+
+        </div>
+
+
+        <div class="charts two">
+
+            <div class="chart-card">
+                <h3>Kp</h3>
+
+                <div class="chart-wrap">
+                    <canvas id="kpChart"></canvas>
+                </div>
+            </div>
+
+
+            <div class="chart-card">
+                <h3>Dst</h3>
+
+                <div class="chart-wrap">
+                    <canvas id="dstChart"></canvas>
+                </div>
+            </div>
+
+
+            <div class="chart-card">
+                <h3>SYM-H</h3>
+
+                <div class="chart-wrap">
+                    <canvas id="symhChart"></canvas>
+                </div>
+            </div>
+
+
+            <div class="chart-card">
+                <h3>AE</h3>
+
+                <div class="chart-wrap">
+                    <canvas id="aeChart"></canvas>
+                </div>
+            </div>
+
+
+            <div class="chart-card full">
+                <h3>SMR</h3>
+
+                <div class="chart-wrap">
+                    <canvas id="smrChart"></canvas>
                 </div>
 
-                <div
-                    id="kp"
-                    style="
-                        font-size:32px;
-                        font-weight:bold;
-                        color:#4bbcff;
-                    "
-                >
-                    --
-                </div>
-
-            </div>
-
-            <div class="chart-box">
-                <canvas id="kpChart"></canvas>
-            </div>
-
-            <div id="kpTime" class="time">
-                Waiting...
+                <p class="chart-note">
+                    SMR requires SuperMAG API access.
+                    Configure it in <code>script.js</code>.
+                </p>
             </div>
 
         </div>
 
-    </div>
+    </section>
 
-    <div class="raw">
 
-        <div class="card">
+    <!-- =====================================================
+         CONTROLS
+    ====================================================== -->
 
-            <div class="label">
-                Diagnostic Information
-            </div>
+    <section class="controls">
 
-            <pre id="diagnostic">
-Waiting for NOAA response...
-            </pre>
+        <label for="historyRange">
+            Historical range
+        </label>
 
-        </div>
+        <select id="historyRange">
 
-    </div>
+            <option value="6">
+                6 hours
+            </option>
 
-</div>
+            <option value="12">
+                12 hours
+            </option>
 
-<!-- IMPORTANT: JavaScript is loaded only once -->
-<script src="script.js"></script>
+            <option value="24" selected>
+                24 hours
+            </option>
+
+            <option value="72">
+                3 days
+            </option>
+
+        </select>
+
+
+        <button id="refreshButton">
+            Refresh now
+        </button>
+
+    </section>
+
+
+    <footer>
+
+        <p>
+            Data are displayed in UTC.
+            Solar-wind/IMF data: NOAA SWPC.
+            Geomagnetic indices: WDC Kyoto / GFZ.
+        </p>
+
+    </footer>
+
+</main>
 
 </body>
 </html>
