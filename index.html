@@ -1,342 +1,372 @@
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+<!DOCTYPE html> <html lang="en"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Space Weather Monitor</title>
 
-    <title>Live Space Weather Dashboard</title>
+<link rel="stylesheet" href="style.css">
 
-    <link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
-    <script
-        src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
-        defer>
-    </script>
+</head> <body> <header class="site-header"> <div> <h1>SPACE WEATHER MONITOR</h1> <p>Solar wind · IMF · Geomagnetic activity</p> </div>
+<div class="connection">
+    <span id="statusDot" class="status-dot"></span>
+    <span id="status">Connecting…</span>
+</div>
 
-    <script src="script.js" defer></script>
-</head>
+</header> <main>
+<section class="toolbar">
+    <div>
+        <span class="toolbar-label">History</span>
 
-<body>
+        <button class="range-button active" data-hours="6">6 h</button>
+        <button class="range-button" data-hours="12">12 h</button>
+        <button class="range-button" data-hours="24">24 h</button>
+        <button class="range-button" data-hours="72">3 days</button>
+    </div>
 
-<main class="container">
-
-    <header class="header">
-        <div>
-            <h1>Live Space Weather</h1>
-            <p>Solar wind, IMF and geomagnetic conditions</p>
-        </div>
-
-        <div class="header-meta">
-            <span id="status" class="status loading">
-                Connecting…
-            </span>
-
-            <span id="lastUpdate" class="muted">
-                —
-            </span>
-        </div>
-    </header>
+    <div class="last-update">
+        Updated:
+        <span id="lastUpdate">--</span>
+    </div>
+</section>
 
 
-    <!-- =====================================================
-         SOLAR WIND
-    ====================================================== -->
+<!-- =====================================================
+     SOLAR WIND
+====================================================== -->
 
-    <section class="section">
+<section class="section">
 
-        <div class="section-title">
-            <h2>Solar Wind</h2>
-            <span>NOAA RTSW · 1 minute</span>
-        </div>
+    <div class="section-title">
+        <span class="section-indicator solar"></span>
+        <h2>Solar Wind</h2>
+    </div>
 
-        <div class="cards three">
+    <div class="value-grid">
 
-            <article class="metric">
-                <span>Speed</span>
-                <strong id="speed">—</strong>
+        <article class="value-card">
+            <div class="card-label">Speed</div>
+            <div class="value">
+                <span id="speed">--</span>
                 <small>km/s</small>
-            </article>
+            </div>
+            <div class="timestamp" id="speedTime">--</div>
+        </article>
 
-            <article class="metric">
-                <span>Temperature</span>
-                <strong id="temperature">—</strong>
+        <article class="value-card">
+            <div class="card-label">Temperature</div>
+            <div class="value">
+                <span id="temperature">--</span>
                 <small>K</small>
-            </article>
+            </div>
+            <div class="timestamp" id="temperatureTime">--</div>
+        </article>
 
-            <article class="metric">
-                <span>Density</span>
-                <strong id="density">—</strong>
+        <article class="value-card">
+            <div class="card-label">Density</div>
+            <div class="value">
+                <span id="density">--</span>
                 <small>cm⁻³</small>
-            </article>
+            </div>
+            <div class="timestamp" id="densityTime">--</div>
+        </article>
+
+    </div>
+
+    <div class="chart-card">
+        <div class="chart-header">
+            <div>
+                <h3>Solar Wind Parameters</h3>
+                <p>Speed, temperature and proton density</p>
+            </div>
+        </div>
+
+        <div class="chart-container large">
+            <canvas id="solarWindChart"></canvas>
+        </div>
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     IMF
+====================================================== -->
+
+<section class="section">
+
+    <div class="section-title">
+        <span class="section-indicator imf"></span>
+        <h2>Interplanetary Magnetic Field</h2>
+    </div>
+
+    <div class="value-grid five">
+
+        <article class="value-card">
+            <div class="card-label">Bx</div>
+            <div class="value">
+                <span id="bx">--</span>
+                <small>nT</small>
+            </div>
+        </article>
+
+        <article class="value-card">
+            <div class="card-label">By</div>
+            <div class="value">
+                <span id="by">--</span>
+                <small>nT</small>
+            </div>
+        </article>
+
+        <article class="value-card highlight">
+            <div class="card-label">Bz</div>
+            <div class="value">
+                <span id="bz">--</span>
+                <small>nT</small>
+            </div>
+        </article>
+
+        <article class="value-card">
+            <div class="card-label">Bt</div>
+            <div class="value">
+                <span id="bt">--</span>
+                <small>nT</small>
+            </div>
+        </article>
+
+        <article class="value-card">
+            <div class="card-label">Clock Angle</div>
+            <div class="value">
+                <span id="clockAngle">--</span>
+                <small>°</small>
+            </div>
+        </article>
+
+    </div>
+
+    <div class="chart-card">
+        <div class="chart-header">
+            <div>
+                <h3>IMF History</h3>
+                <p>Bx, By, Bz and total magnetic field</p>
+            </div>
+        </div>
+
+        <div class="chart-container large">
+            <canvas id="imfChart"></canvas>
+        </div>
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     CLOCK ANGLE
+====================================================== -->
+
+<section class="section">
+
+    <div class="section-title">
+        <span class="section-indicator angle"></span>
+        <h2>IMF Clock Angle</h2>
+    </div>
+
+    <div class="clock-panel">
+
+        <div class="clock">
+
+            <div class="clock-label top">0°</div>
+            <div class="clock-label right">90°</div>
+            <div class="clock-label bottom">180°</div>
+            <div class="clock-label left">270°</div>
+
+            <div id="clockNeedle" class="clock-needle"></div>
+            <div class="clock-center"></div>
 
         </div>
 
-
-        <div class="charts three">
-
-            <div class="chart-card">
-                <h3>Solar-wind speed</h3>
-
-                <div class="chart-wrap">
-                    <canvas id="speedChart"></canvas>
-                </div>
+        <div class="clock-info">
+            <div class="clock-angle-value">
+                <span id="clockAngleLarge">--</span>°
             </div>
 
-
-            <div class="chart-card">
-                <h3>Temperature</h3>
-
-                <div class="chart-wrap">
-                    <canvas id="temperatureChart"></canvas>
-                </div>
+            <div class="clock-description">
+                IMF clock angle calculated from By and Bz.
             </div>
-
-
-            <div class="chart-card">
-                <h3>Density</h3>
-
-                <div class="chart-wrap">
-                    <canvas id="densityChart"></canvas>
-                </div>
-            </div>
-
         </div>
 
-    </section>
+    </div>
+
+</section>
 
 
-    <!-- =====================================================
-         IMF
-    ====================================================== -->
+<!-- =====================================================
+     GEOMAGNETIC
+====================================================== -->
 
-    <section class="section">
+<section class="section">
 
-        <div class="section-title">
-            <h2>Interplanetary Magnetic Field</h2>
-            <span>GSM coordinates</span>
+    <div class="section-title">
+        <span class="section-indicator geo"></span>
+        <h2>Geomagnetic Activity</h2>
+    </div>
+
+    <div class="value-grid five">
+
+        <article class="value-card kp-card">
+            <div class="card-label">Kp</div>
+            <div class="value">
+                <span id="kp">--</span>
+            </div>
+            <div class="timestamp" id="kpTime">--</div>
+        </article>
+
+        <article class="value-card">
+            <div class="card-label">Dst</div>
+            <div class="value">
+                <span id="dst">--</span>
+                <small>nT</small>
+            </div>
+            <div class="timestamp" id="dstTime">--</div>
+        </article>
+
+        <article class="value-card">
+            <div class="card-label">SYM-H</div>
+            <div class="value">
+                <span id="symh">--</span>
+                <small>nT</small>
+            </div>
+            <div class="timestamp" id="symhTime">--</div>
+        </article>
+
+        <article class="value-card">
+            <div class="card-label">AE</div>
+            <div class="value">
+                <span id="ae">--</span>
+                <small>nT</small>
+            </div>
+            <div class="timestamp" id="aeTime">--</div>
+        </article>
+
+        <article class="value-card">
+            <div class="card-label">SMR</div>
+            <div class="value">
+                <span id="smr">--</span>
+                <small>nT</small>
+            </div>
+            <div class="timestamp" id="smrTime">--</div>
+        </article>
+
+    </div>
+
+
+    <div class="chart-grid">
+
+        <div class="chart-card">
+            <div class="chart-header">
+                <div>
+                    <h3>Kp</h3>
+                    <p>Planetary geomagnetic index</p>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="kpChart"></canvas>
+            </div>
         </div>
 
+        <div class="chart-card">
+            <div class="chart-header">
+                <div>
+                    <h3>Dst</h3>
+                    <p>Hourly disturbance storm time index</p>
+                </div>
+            </div>
 
-        <div class="cards five">
-
-            <article class="metric">
-                <span>Bx</span>
-                <strong id="bx">—</strong>
-                <small>nT</small>
-            </article>
-
-            <article class="metric">
-                <span>By</span>
-                <strong id="by">—</strong>
-                <small>nT</small>
-            </article>
-
-            <article class="metric">
-                <span>Bz</span>
-                <strong id="bz">—</strong>
-                <small>nT</small>
-            </article>
-
-            <article class="metric">
-                <span>Bt</span>
-                <strong id="bt">—</strong>
-                <small>nT</small>
-            </article>
-
-            <article class="metric accent">
-                <span>Clock Angle</span>
-                <strong id="clockAngle">—</strong>
-                <small>degrees</small>
-            </article>
-
+            <div class="chart-container">
+                <canvas id="dstChart"></canvas>
+            </div>
         </div>
 
-
-        <div class="charts three">
-
-            <div class="chart-card wide">
-                <h3>IMF Components</h3>
-
-                <div class="chart-wrap">
-                    <canvas id="imfChart"></canvas>
+        <div class="chart-card">
+            <div class="chart-header">
+                <div>
+                    <h3>SYM-H</h3>
+                    <p>1-minute symmetric disturbance index</p>
                 </div>
             </div>
 
-
-            <div class="chart-card">
-                <h3>Total IMF (Bt)</h3>
-
-                <div class="chart-wrap">
-                    <canvas id="btChart"></canvas>
-                </div>
+            <div class="chart-container">
+                <canvas id="symhChart"></canvas>
             </div>
-
-
-            <div class="chart-card">
-                <h3>Clock Angle</h3>
-
-                <div class="chart-wrap">
-                    <canvas id="clockChart"></canvas>
-                </div>
-            </div>
-
         </div>
 
-    </section>
+        <div class="chart-card">
+            <div class="chart-header">
+                <div>
+                    <h3>AE</h3>
+                    <p>Auroral electrojet index</p>
+                </div>
+            </div>
 
-
-    <!-- =====================================================
-         GEOMAGNETIC INDICES
-    ====================================================== -->
-
-    <section class="section">
-
-        <div class="section-title">
-            <h2>Geomagnetic Indices</h2>
-            <span>NOAA / WDC Kyoto</span>
+            <div class="chart-container">
+                <canvas id="aeChart"></canvas>
+            </div>
         </div>
 
+        <div class="chart-card full-width">
+            <div class="chart-header">
+                <div>
+                    <h3>SMR</h3>
+                    <p>SuperMAG ring-current index</p>
+                </div>
+            </div>
 
-        <div class="cards five">
+            <div id="smrMessage" class="data-message">
+                SMR requires a SuperMAG API key. Enter your key in
+                <code>script.js</code> to enable this data source.
+            </div>
 
-            <article class="metric">
-                <span>Kp</span>
-                <strong id="kp">—</strong>
-                <small>0–9</small>
-            </article>
-
-            <article class="metric">
-                <span>Dst</span>
-                <strong id="dst">—</strong>
-                <small>nT</small>
-            </article>
-
-            <article class="metric">
-                <span>SYM-H</span>
-                <strong id="symh">—</strong>
-                <small>nT</small>
-            </article>
-
-            <article class="metric">
-                <span>AE</span>
-                <strong id="ae">—</strong>
-                <small>nT</small>
-            </article>
-
-            <article class="metric optional">
-                <span>SMR</span>
-                <strong id="smr">—</strong>
-                <small>nT</small>
-            </article>
-
+            <div class="chart-container">
+                <canvas id="smrChart"></canvas>
+            </div>
         </div>
 
+    </div>
 
-        <div class="charts two">
-
-            <div class="chart-card">
-                <h3>Kp</h3>
-
-                <div class="chart-wrap">
-                    <canvas id="kpChart"></canvas>
-                </div>
-            </div>
+</section>
 
 
-            <div class="chart-card">
-                <h3>Dst</h3>
+<!-- =====================================================
+     STATUS / DATA SOURCES
+====================================================== -->
 
-                <div class="chart-wrap">
-                    <canvas id="dstChart"></canvas>
-                </div>
-            </div>
+<section class="sources">
 
+    <h2>Data sources</h2>
 
-            <div class="chart-card">
-                <h3>SYM-H</h3>
+    <div class="source-grid">
 
-                <div class="chart-wrap">
-                    <canvas id="symhChart"></canvas>
-                </div>
-            </div>
-
-
-            <div class="chart-card">
-                <h3>AE</h3>
-
-                <div class="chart-wrap">
-                    <canvas id="aeChart"></canvas>
-                </div>
-            </div>
-
-
-            <div class="chart-card full">
-                <h3>SMR</h3>
-
-                <div class="chart-wrap">
-                    <canvas id="smrChart"></canvas>
-                </div>
-
-                <p class="chart-note">
-                    SMR requires SuperMAG API access.
-                    Configure it in <code>script.js</code>.
-                </p>
-            </div>
-
+        <div>
+            <strong>Solar wind / IMF</strong>
+            <span>NOAA SWPC RTSW 1-minute data</span>
         </div>
 
-    </section>
+        <div>
+            <strong>Kp / Dst / AE / SYM-H</strong>
+            <span>WDC Geomagnetism Kyoto HAPI</span>
+        </div>
 
+        <div>
+            <strong>SMR</strong>
+            <span>SuperMAG API</span>
+        </div>
 
-    <!-- =====================================================
-         CONTROLS
-    ====================================================== -->
+    </div>
 
-    <section class="controls">
+    <p class="footer-note">
+        All timestamps are displayed in UTC. Values marked “--” mean that
+        the selected source currently has no usable value.
+    </p>
 
-        <label for="historyRange">
-            Historical range
-        </label>
+</section>
 
-        <select id="historyRange">
-
-            <option value="6">
-                6 hours
-            </option>
-
-            <option value="12">
-                12 hours
-            </option>
-
-            <option value="24" selected>
-                24 hours
-            </option>
-
-            <option value="72">
-                3 days
-            </option>
-
-        </select>
-
-
-        <button id="refreshButton">
-            Refresh now
-        </button>
-
-    </section>
-
-
-    <footer>
-
-        <p>
-            Data are displayed in UTC.
-            Solar-wind/IMF data: NOAA SWPC.
-            Geomagnetic indices: WDC Kyoto / GFZ.
-        </p>
-
-    </footer>
-
-</main>
-
-</body>
-</html>
+</main> <script src="script.js"></script> </body> </html>
