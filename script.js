@@ -25,7 +25,9 @@ function setConnection(online, message) {
         dot.classList.toggle("offline", !online);
     }
 
-    if (status) status.textContent = message;
+    if (status) {
+        status.textContent = message;
+    }
 }
 
 function showError(message) {
@@ -41,13 +43,17 @@ function showError(message) {
 
 function hideError() {
     const error = $("error-message");
-    if (error) error.hidden = true;
+    if (error) {
+        error.hidden = true;
+    }
 }
 
 function formatNumber(value, decimals = 0) {
     const number = Number(value);
 
-    if (!Number.isFinite(number)) return "--";
+    if (!Number.isFinite(number)) {
+        return "--";
+    }
 
     return number.toFixed(decimals);
 }
@@ -55,7 +61,9 @@ function formatNumber(value, decimals = 0) {
 function formatTemperature(value) {
     const number = Number(value);
 
-    if (!Number.isFinite(number)) return "--";
+    if (!Number.isFinite(number)) {
+        return "--";
+    }
 
     return Math.round(number)
         .toLocaleString("en-US")
@@ -63,11 +71,15 @@ function formatTemperature(value) {
 }
 
 function formatMeasurementTime(value) {
-    if (!value) return "--";
+    if (!value) {
+        return "--";
+    }
 
     const date = new Date(value);
 
-    if (Number.isNaN(date.getTime())) return "--";
+    if (Number.isNaN(date.getTime())) {
+        return "--";
+    }
 
     return date.toLocaleString([], {
         year: "numeric",
@@ -106,21 +118,28 @@ async function fetchJSON(url) {
 }
 
 function newestRecord(data) {
-    if (!Array.isArray(data)) return null;
+    if (!Array.isArray(data)) {
+        return null;
+    }
 
     const records = data.filter(
         row => row && row.time_tag
     );
 
-    if (!records.length) return null;
+    if (!records.length) {
+        return null;
+    }
 
-    records.sort(
-        (a, b) =>
-            new Date(b.time_tag).getTime() -
-            new Date(a.time_tag).getTime()
-    );
+    return records.reduce((latest, row) => {
+        if (!latest) {
+            return row;
+        }
 
-    return records[0];
+        return new Date(row.time_tag).getTime() >
+            new Date(latest.time_tag).getTime()
+            ? row
+            : latest;
+    }, null);
 }
 
 
@@ -128,17 +147,14 @@ function newestRecord(data) {
    SOLAR WIND
 ========================= */
 
-async function updateSolarWind() {
-    const data = await fetchJSON(API.wind);
-    const latest = newestRecord(data);
-
-    if (!latest) {
+function displaySolarWind(wind) {
+    if (!wind) {
         throw new Error("No solar-wind data.");
     }
 
-    const speed = Number(latest.proton_speed);
-    const density = Number(latest.proton_density);
-    const temperature = Number(latest.proton_temperature);
+    const speed = Number(wind.proton_speed);
+    const density = Number(wind.proton_density);
+    const temperature = Number(wind.proton_temperature);
 
     setText(
         "solar-wind-speed",
@@ -189,13 +205,11 @@ async function updateSolarWind() {
     );
 
     const timestamp =
-        formatMeasurementTime(latest.time_tag);
+        formatMeasurementTime(wind.time_tag);
 
     setText("speed-time", timestamp);
     setText("density-time", timestamp);
     setText("temperature-time", timestamp);
-
-    return latest;
 }
 
 
@@ -203,18 +217,15 @@ async function updateSolarWind() {
    MAGNETIC FIELD
 ========================= */
 
-async function updateMagneticField() {
-    const data = await fetchJSON(API.magnetic);
-    const latest = newestRecord(data);
-
-    if (!latest) {
+function displayMagneticField(magnetic) {
+    if (!magnetic) {
         throw new Error("No magnetic-field data.");
     }
 
-    const bx = Number(latest.bx_gsm);
-    const by = Number(latest.by_gsm);
-    const bz = Number(latest.bz_gsm);
-    const bt = Number(latest.bt);
+    const bx = Number(magnetic.bx_gsm);
+    const by = Number(magnetic.by_gsm);
+    const bz = Number(magnetic.bz_gsm);
+    const bt = Number(magnetic.bt);
 
     setText("bx", formatNumber(bx, 1));
     setText("by", formatNumber(by, 1));
@@ -241,37 +252,24 @@ async function updateMagneticField() {
     }
 
     const timestamp =
-        formatMeasurementTime(latest.time_tag);
+        formatMeasurementTime(magnetic.time_tag);
 
     setText("bx-time", timestamp);
     setText("by-time", timestamp);
     setText("bz-time", timestamp);
     setText("bt-time", timestamp);
     setText("clock-angle-time", timestamp);
-
-    return latest;
 }
 
 
 /* =========================
-   PLASMA CALCULATIONS
+   THERMAL PRESSURE
 ========================= */
 
 function calculateThermalPressure(
     densityCm3,
     temperatureK
 ) {
-    /*
-       Proton thermal pressure:
-
-       P = n k T
-
-       density: cm^-3
-       temperature: K
-
-       Result converted to nPa.
-    */
-
     const density = Number(densityCm3);
     const temperature = Number(temperatureK);
 
@@ -282,30 +280,37 @@ function calculateThermalPressure(
         return NaN;
     }
 
-    const densityM3 = density * 1e6;
-    const kB = 1.380649e-23;
+    /*
+       P = n k T
+
+       n: proton density in cm^-3
+       T: proton temperature in K
+       result: nPa
+    */
+
+    const densityM3 =
+        density * 1e6;
+
+    const kB =
+        1.380649e-23;
 
     const pressurePa =
-        densityM3 * kB * temperature;
+        densityM3 *
+        kB *
+        temperature;
 
     return pressurePa * 1e9;
 }
+
+
+/* =========================
+   PLASMA BETA
+========================= */
 
 function calculatePlasmaBeta(
     thermalPressureNpa,
     magneticFieldNt
 ) {
-    /*
-       Plasma beta:
-
-       beta = thermal pressure / magnetic pressure
-
-       Magnetic pressure:
-       P_B = B² / (2 μ0)
-
-       Result is dimensionless.
-    */
-
     const thermalPressure =
         Number(thermalPressureNpa);
 
@@ -319,6 +324,14 @@ function calculatePlasmaBeta(
     ) {
         return NaN;
     }
+
+    /*
+       Plasma beta = thermal pressure /
+                     magnetic pressure
+
+       Magnetic pressure:
+       P_B = B² / (2 μ0)
+    */
 
     const mu0 =
         4 * Math.PI * 1e-7;
@@ -339,22 +352,11 @@ function calculatePlasmaBeta(
     );
 }
 
-async function updatePlasma() {
-    const [windData, magneticData] =
-        await Promise.all([
-            fetchJSON(API.wind),
-            fetchJSON(API.magnetic)
-        ]);
-
-    const wind = newestRecord(windData);
-    const magnetic = newestRecord(magneticData);
-
-    if (!wind) {
-        throw new Error("No solar-wind data for plasma calculation.");
-    }
-
-    if (!magnetic) {
-        throw new Error("No magnetic data for plasma calculation.");
+function displayPlasma(wind, magnetic) {
+    if (!wind || !magnetic) {
+        throw new Error(
+            "Solar-wind or magnetic data unavailable."
+        );
     }
 
     const density =
@@ -398,20 +400,23 @@ async function updatePlasma() {
         "Calculated"
     );
 
+    /*
+       The calculations use the solar-wind
+       measurement timestamp.
+    */
+
+    const timestamp =
+        formatMeasurementTime(wind.time_tag);
+
     setText(
         "thermal-pressure-time",
-        formatMeasurementTime(wind.time_tag)
+        timestamp
     );
 
     setText(
         "plasma-beta-time",
-        formatMeasurementTime(wind.time_tag)
+        timestamp
     );
-
-    return {
-        windTime: wind.time_tag,
-        magneticTime: magnetic.time_tag
-    };
 }
 
 
@@ -419,9 +424,7 @@ async function updatePlasma() {
    KP
 ========================= */
 
-async function updateKp() {
-    const data = await fetchJSON(API.kp);
-
+function displayKp(data) {
     if (!Array.isArray(data)) {
         throw new Error("No Kp data.");
     }
@@ -432,20 +435,17 @@ async function updateKp() {
                 row &&
                 row.time_tag &&
                 row.Kp !== undefined
-        )
-        .sort(
-            (a, b) =>
-                new Date(b.time_tag).getTime() -
-                new Date(a.time_tag).getTime()
         );
 
-    const latest = rows[0];
+    const latest =
+        newestRecord(rows);
 
     if (!latest) {
         throw new Error("No valid Kp data.");
     }
 
-    const kp = Number(latest.Kp);
+    const kp =
+        Number(latest.Kp);
 
     setText(
         "kp-index",
@@ -477,7 +477,9 @@ async function updateKp() {
 
     setText(
         "kp-time",
-        formatMeasurementTime(latest.time_tag)
+        formatMeasurementTime(
+            latest.time_tag
+        )
     );
 }
 
@@ -486,33 +488,27 @@ async function updateKp() {
    DST
 ========================= */
 
-async function updateDst() {
-    const data = await fetchJSON(API.dst);
-
+function displayDst(data) {
     if (!Array.isArray(data)) {
         throw new Error("No Dst data.");
     }
 
-    const rows = data
-        .filter(
-            row =>
-                row &&
-                row.time_tag &&
-                row.dst !== undefined
-        )
-        .sort(
-            (a, b) =>
-                new Date(b.time_tag).getTime() -
-                new Date(a.time_tag).getTime()
-        );
+    const rows = data.filter(
+        row =>
+            row &&
+            row.time_tag &&
+            row.dst !== undefined
+    );
 
-    const latest = rows[0];
+    const latest =
+        newestRecord(rows);
 
     if (!latest) {
         throw new Error("No valid Dst data.");
     }
 
-    const dst = Number(latest.dst);
+    const dst =
+        Number(latest.dst);
 
     setText(
         "dst",
@@ -535,7 +531,9 @@ async function updateDst() {
 
     setText(
         "dst-time",
-        formatMeasurementTime(latest.time_tag)
+        formatMeasurementTime(
+            latest.time_tag
+        )
     );
 }
 
@@ -548,38 +546,75 @@ async function updateAll() {
     setConnection(false, "Updating...");
     hideError();
 
-    const refreshTime = new Date();
+    const refreshTime =
+        new Date();
 
-    const results =
-        await Promise.allSettled([
-            updateSolarWind(),
-            updateMagneticField(),
-            updatePlasma(),
-            updateKp(),
-            updateDst()
+    try {
+        /*
+           Fetch each NOAA feed only once.
+        */
+
+        const [
+            windData,
+            magneticData,
+            kpData,
+            dstData
+        ] = await Promise.all([
+            fetchJSON(API.wind),
+            fetchJSON(API.magnetic),
+            fetchJSON(API.kp),
+            fetchJSON(API.dst)
         ]);
 
-    const failures =
-        results.filter(
-            result =>
-                result.status === "rejected"
+        const wind =
+            newestRecord(windData);
+
+        const magnetic =
+            newestRecord(magneticData);
+
+        /*
+           Update all dashboard sections
+           from the same downloaded data.
+        */
+
+        displaySolarWind(wind);
+        displayMagneticField(magnetic);
+        displayPlasma(wind, magnetic);
+        displayKp(kpData);
+        displayDst(dstData);
+
+        setText(
+            "last-update",
+            `Last update: ${formatLastUpdate(refreshTime)}`
         );
 
-    setText(
-        "last-update",
-        `Last update: ${formatLastUpdate(refreshTime)}`
-    );
+        setConnection(
+            true,
+            "Connected"
+        );
 
-    if (failures.length === 0) {
-        setConnection(true, "Connected");
         console.log(
             "Space Weather data updated successfully."
         );
-    } else {
-        setConnection(false, "Partial data");
+
+    } catch (error) {
+        console.error(
+            "Space Weather update failed:",
+            error
+        );
+
+        setConnection(
+            false,
+            "Data unavailable"
+        );
 
         showError(
-            `${failures.length} NOAA data source(s) unavailable.`
+            `NOAA data update failed: ${error.message}`
+        );
+
+        setText(
+            "last-update",
+            `Last update: ${formatLastUpdate(refreshTime)}`
         );
     }
 }
