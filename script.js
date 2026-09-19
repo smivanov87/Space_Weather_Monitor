@@ -1,372 +1,207 @@
 "use strict";
 
 const API = {
-    solarWind:
-        "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json",
-
-    solarWindPlasma:
-        "https://services.swpc.noaa.gov/products/summary/solar-wind.json",
-
-    magneticField:
-        "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json",
-
-    kp:
-        "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
+  wind: "https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json",
+  magnetic: "https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json",
+  kp: "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
 };
 
-function $(id) {
-    return document.getElementById(id);
-}
+const $ = (id) => document.getElementById(id);
 
 function setText(id, value) {
-    const element = $(id);
-
-    if (element) {
-        element.textContent = value;
-    }
+  const el = $(id);
+  if (el) el.textContent = value;
 }
 
-function setConnection(online, message) {
-    const dot = $("status-dot");
-    const status = $("connection-status");
-
-    if (dot) {
-        dot.classList.toggle("online", online);
-        dot.classList.toggle("offline", !online);
-    }
-
-    if (status) {
-        status.textContent = message;
-    }
+function formatNumber(value, decimals = 1) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(decimals) : "--";
 }
 
-function showError(message) {
-    const error = $("error-message");
+function setStatus(text, connected = true) {
+  setText("connection-status", text);
 
-    if (error) {
-        error.textContent = message;
-        error.hidden = false;
-    }
-
-    console.error(message);
-}
-
-function hideError() {
-    const error = $("error-message");
-
-    if (error) {
-        error.hidden = true;
-    }
-}
-
-function formatNumber(value, decimals = 0) {
-    const number = Number(value);
-
-    if (!Number.isFinite(number)) {
-        return "--";
-    }
-
-    return number.toFixed(decimals);
-}
-
-function formatTime(value) {
-    if (!value) {
-        return "--";
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return "--";
-    }
-
-    return date.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit"
-    });
+  const dot = $("status-dot");
+  if (dot) {
+    dot.classList.toggle("connected", connected);
+    dot.classList.toggle("error", !connected);
+  }
 }
 
 async function fetchJSON(url) {
-    const response = await fetch(
-        `${url}?_=${Date.now()}`,
-        {
-            cache: "no-store",
-            mode: "cors"
-        }
-    );
+  const response = await fetch(url, {
+    cache: "no-store"
+  });
 
-    if (!response.ok) {
-        throw new Error(`NOAA HTTP ${response.status}`);
-    }
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
 
-    return response.json();
+  return response.json();
 }
 
+function newestActiveRecord(data) {
+  if (!Array.isArray(data)) return null;
 
-/* SOLAR WIND */
+  const active = data.filter(
+    row => row && (row.active === true || row.active === "true")
+  );
+
+  const records = active.length ? active : data;
+
+  return records.find(
+    row =>
+      row &&
+      row.time_tag &&
+      (
+        row.proton_speed !== undefined ||
+        row.proton_density !== undefined ||
+        row.proton_temperature !== undefined ||
+        row.bx_gsm !== undefined ||
+        row.bt !== undefined
+      )
+  ) || null;
+}
 
 async function updateSolarWind() {
-    const speedData = await fetchJSON(API.solarWind);
+  const data = await fetchJSON(API.wind);
+  const row = newestActiveRecord(data);
 
-    if (!Array.isArray(speedData) || !speedData.length) {
-        throw new Error("No solar-wind speed data.");
-    }
+  if (!row) throw new Error("No solar-wind data available");
 
-    const latest = speedData[0];
-    const speed = Number(latest.proton_speed);
+  setText("solar-wind-speed", formatNumber(row.proton_speed, 0));
+  setText("density", formatNumber(row.proton_density, 2));
 
-    setText(
-        "solar-wind-speed",
-        formatNumber(speed)
-    );
+  // NOAA RTSW uses proton_temperature for the solar-wind temperature.
+  const temperature = Number(row.proton_temperature);
 
-    if (speed < 400) {
-        setText("speed-status", "Low");
-    } else if (speed < 500) {
-        setText("speed-status", "Normal");
-    } else if (speed < 700) {
-        setText("speed-status", "Elevated");
-    } else {
-        setText("speed-status", "High");
-    }
+  if (Number.isFinite(temperature)) {
+    setText("temperature", temperature.toLocaleString("en-US", {
+      maximumFractionDigits: 0
+    }));
+  } else {
+    setText("temperature", "--");
+  }
 
-    /*
-     * Get density and temperature from the solar-wind
-     * plasma summary when available.
-     */
-    try {
-        const plasmaData =
-            await fetchJSON(API.solarWindPlasma);
-
-        if (Array.isArray(plasmaData) && plasmaData.length) {
-            const plasma = plasmaData[0];
-
-            const density =
-                Number(
-                    plasma.proton_density ??
-                    plasma.density
-                );
-
-            const temperature =
-                Number(
-                    plasma.proton_temperature ??
-                    plasma.temperature
-                );
-
-            setText(
-                "density",
-                Number.isFinite(density)
-                    ? formatNumber(density, 2)
-                    : "--"
-            );
-
-            setText(
-                "temperature",
-                Number.isFinite(temperature)
-                    ? formatNumber(temperature, 0)
-                    : "--"
-            );
-
-            if (Number.isFinite(density)) {
-                if (density < 5) {
-                    setText("density-status", "Low");
-                } else if (density < 10) {
-                    setText("density-status", "Normal");
-                } else {
-                    setText("density-status", "Elevated");
-                }
-            }
-
-            if (Number.isFinite(temperature)) {
-                setText("temperature-status", "Measured");
-            }
-        }
-    } catch (error) {
-        console.warn(
-            "Solar-wind plasma data unavailable:",
-            error
-        );
-    }
-
-    return latest.time_tag;
+  return row.time_tag;
 }
-
-
-/* MAGNETIC FIELD */
 
 async function updateMagneticField() {
-    const data =
-        await fetchJSON(API.magneticField);
+  const data = await fetchJSON(API.magnetic);
+  const row = newestActiveRecord(data);
 
-    if (!Array.isArray(data) || !data.length) {
-        throw new Error("No magnetic-field data.");
-    }
+  if (!row) throw new Error("No magnetic-field data available");
 
-    const latest = data[0];
+  setText("bx", formatNumber(row.bx_gsm, 1));
+  setText("by", formatNumber(row.by_gsm, 1));
+  setText("bz", formatNumber(row.bz_gsm, 1));
+  setText("bt", formatNumber(row.bt, 1));
 
-    const bt = Number(latest.bt);
-    const bz = Number(latest.bz_gsm);
+  const bx = Number(row.bx_gsm);
+  const by = Number(row.by_gsm);
+  const bz = Number(row.bz_gsm);
 
-    setText(
-        "bx",
-        Number.isFinite(Number(latest.bx_gsm))
-            ? formatNumber(latest.bx_gsm, 1)
-            : "--"
-    );
+  if (
+    Number.isFinite(bx) &&
+    Number.isFinite(by) &&
+    Number.isFinite(bz)
+  ) {
+    // GSM clock angle measured from +Bz.
+    let angle = Math.atan2(by, bz) * 180 / Math.PI;
+    if (angle < 0) angle += 360;
 
-    setText(
-        "by",
-        Number.isFinite(Number(latest.by_gsm))
-            ? formatNumber(latest.by_gsm, 1)
-            : "--"
-    );
+    setText("clock-angle", `${angle.toFixed(1)}°`);
+  } else {
+    setText("clock-angle", "--");
+  }
 
-    setText(
-        "bz",
-        Number.isFinite(bz)
-            ? formatNumber(bz, 1)
-            : "--"
-    );
-
-    setText(
-        "bt",
-        Number.isFinite(bt)
-            ? formatNumber(bt, 1)
-            : "--"
-    );
-
-    /*
-     * Clock angle from By/Bz when both are available.
-     */
-    const by = Number(latest.by_gsm);
-
-    if (Number.isFinite(by) && Number.isFinite(bz)) {
-        let angle =
-            Math.atan2(by, bz) *
-            180 /
-            Math.PI;
-
-        if (angle < 0) {
-            angle += 360;
-        }
-
-        setText(
-            "clock-angle",
-            formatNumber(angle, 1)
-        );
-    } else {
-        setText("clock-angle", "--");
-    }
+  return row.time_tag;
 }
-
-
-/* KP */
 
 async function updateKp() {
-    const data = await fetchJSON(API.kp);
+  const data = await fetchJSON(API.kp);
 
-    if (!Array.isArray(data) || !data.length) {
-        throw new Error("No Kp data.");
-    }
+  if (!Array.isArray(data) || data.length < 2) {
+    throw new Error("No Kp data available");
+  }
 
-    const latest = data[data.length - 1];
-    const kp = Number(latest.Kp);
-
-    if (!Number.isFinite(kp)) {
-        throw new Error("Invalid Kp value.");
-    }
-
-    setText(
-        "kp-index",
-        formatNumber(kp, 2)
+  // NOAA's Kp file contains a header row followed by measurements.
+  const rows = data
+    .filter(row => row && row.time_tag && row.Kp !== undefined)
+    .sort(
+      (a, b) =>
+        new Date(b.time_tag).getTime() -
+        new Date(a.time_tag).getTime()
     );
 
-    let description;
+  const row = rows[0];
 
-    if (kp < 2) {
-        description = "Quiet";
-    } else if (kp < 4) {
-        description = "Unsettled";
-    } else if (kp < 5) {
-        description = "Active";
-    } else if (kp < 6) {
-        description = "Minor storm";
-    } else if (kp < 8) {
-        description = "Moderate storm";
-    } else {
-        description = "Strong storm";
-    }
+  if (!row) {
+    throw new Error("No valid Kp measurement");
+  }
 
-    setText(
-        "kp-description",
-        description
-    );
+  const kp = Number(row.Kp);
+
+  setText(
+    "kp-index",
+    Number.isFinite(kp) ? kp.toFixed(1) : "--"
+  );
+
+  let description = "Unknown";
+
+  if (Number.isFinite(kp)) {
+    if (kp < 2) description = "Quiet";
+    else if (kp < 4) description = "Unsettled";
+    else if (kp < 5) description = "Active";
+    else if (kp < 6) description = "Minor storm";
+    else if (kp < 7) description = "Moderate storm";
+    else if (kp < 8) description = "Strong storm";
+    else description = "Severe storm";
+  }
+
+  setText("kp-description", description);
+
+  return row.time_tag;
 }
-
-
-/* MAIN UPDATE */
 
 async function updateAll() {
-    setConnection(false, "Connecting...");
-    hideError();
+  setStatus("Updating...", true);
 
-    try {
-        const solarTime =
-            await updateSolarWind();
+  const results = await Promise.allSettled([
+    updateSolarWind(),
+    updateMagneticField(),
+    updateKp()
+  ]);
 
-        await updateMagneticField();
-        await updateKp();
+  const failures = results.filter(
+    result => result.status === "rejected"
+  );
 
-        setText(
-            "last-update",
-            `Updated ${formatTime(solarTime)}`
-        );
+  if (failures.length === 0) {
+    setStatus("Connected", true);
+    setText(
+      "last-update",
+      `Last update: ${new Date().toLocaleTimeString()}`
+    );
 
-        setConnection(
-            true,
-            "Connected"
-        );
+    const error = $("error-message");
+    if (error) error.textContent = "";
+  } else {
+    setStatus("Partial data", false);
 
-        console.log(
-            "Space Weather data updated successfully."
-        );
-
-    } catch (error) {
-        console.error(error);
-
-        setConnection(
-            false,
-            "Connection error"
-        );
-
-        showError(
-            `Unable to load NOAA data: ${error.message}`
-        );
+    const error = $("error-message");
+    if (error) {
+      error.textContent =
+        `${failures.length} data source${failures.length > 1 ? "s" : ""} unavailable.`;
     }
+  }
 }
-
-
-/* START */
 
 function start() {
-    console.log(
-        "Space Weather Monitor loaded."
-    );
+  updateAll();
 
-    updateAll();
-
-    setInterval(
-        updateAll,
-        60000
-    );
+  // Refresh every minute to match NOAA's RTSW cadence.
+  setInterval(updateAll, 60 * 1000);
 }
 
-if (document.readyState === "loading") {
-    document.addEventListener(
-        "DOMContentLoaded",
-        start
-    );
-} else {
-    start();
-}
+document.addEventListener("DOMContentLoaded", start);
