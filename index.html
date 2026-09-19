@@ -147,40 +147,57 @@
     </div>
 </section>
 
-    
-<section class="section">
-    <h2>Geomagnetic & Plasma Conditions</h2>
+<!-- GEOMAGNETIC & PLASMA CONDITIONS -->
+<section class="panel">
 
-    <div class="grid">
-        <div class="card">
-            <h3>Dst Index</h3>
-            <div class="value">
-                <span id="dst">--</span>
-                <span class="unit">nT</span>
-            </div>
-            <div class="status" id="dst-status">--</div>
-            <div class="timestamp" id="dst-time">--</div>
-        </div>
+    <div class="section-title">
+        <span class="section-icon">◉</span>
 
-        <div class="card">
-            <h3>Thermal Pressure</h3>
-            <div class="value">
-                <span id="thermal-pressure">--</span>
-                <span class="unit">nPa</span>
-            </div>
-            <div class="status" id="thermal-pressure-status">Calculated</div>
-            <div class="timestamp" id="thermal-pressure-time">--</div>
-        </div>
-
-        <div class="card">
-            <h3>Plasma Beta</h3>
-            <div class="value">
-                <span id="plasma-beta">--</span>
-            </div>
-            <div class="status" id="plasma-beta-status">Calculated</div>
-            <div class="timestamp" id="plasma-beta-time">--</div>
+        <div>
+            <h2>Geomagnetic &amp; Plasma Conditions</h2>
+            <p>Geomagnetic index and solar-wind plasma parameters</p>
         </div>
     </div>
+
+    <div class="metrics">
+
+        <div class="metric-card">
+            <div class="metric-label">Dst Index</div>
+
+            <div class="metric-value">
+                <span id="dst">--</span>
+                <span class="metric-unit">nT</span>
+            </div>
+
+            <div id="dst-status" class="metric-status">--</div>
+            <div id="dst-time" class="metric-time">--</div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label">Thermal Pressure</div>
+
+            <div class="metric-value">
+                <span id="thermal-pressure">--</span>
+                <span class="metric-unit">nPa</span>
+            </div>
+
+            <div id="thermal-pressure-status" class="metric-status">Calculated</div>
+            <div id="thermal-pressure-time" class="metric-time">--</div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label">Plasma Beta</div>
+
+            <div class="metric-value">
+                <span id="plasma-beta">--</span>
+            </div>
+
+            <div id="plasma-beta-status" class="metric-status">Calculated</div>
+            <div id="plasma-beta-time" class="metric-time">--</div>
+        </div>
+
+    </div>
+
 </section>
     
 <!-- GEOMAGNETIC ACTIVITY -->
