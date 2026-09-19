@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Space Weather Prediction</title>
+    <title>Live Space Weather</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
         * {
@@ -13,220 +15,372 @@
 
         body {
             margin: 0;
+            min-height: 100vh;
+            background:
+                radial-gradient(
+                    circle at top,
+                    #0b1b30 0%,
+                    #050b14 55%
+                );
+            color: #e8f1ff;
             font-family: Arial, Helvetica, sans-serif;
-            background: #07111f;
-            color: #eaf2ff;
         }
 
-        header {
-            padding: 25px;
+        .container {
+            width: 94%;
+            max-width: 1100px;
+            margin: auto;
+            padding: 30px 0 50px;
+        }
+
+        h1 {
             text-align: center;
-            background: #0c1b2d;
-            border-bottom: 1px solid #203752;
+            margin: 0;
+            font-size: 34px;
         }
 
-        header h1 {
-            margin: 0 0 8px;
+        .subtitle {
+            text-align: center;
+            color: #8192aa;
+            margin: 8px 0 28px;
         }
 
-        #status {
-            color: #66ff99;
+        .status {
+            padding: 12px 15px;
+            margin-bottom: 18px;
+            background: #0d1828;
+            border: 1px solid #1b3049;
+            border-radius: 10px;
+            color: #42e6a4;
             font-size: 14px;
         }
 
-        main {
-            max-width: 1100px;
-            margin: auto;
-            padding: 25px;
+        .status.error {
+            color: #ff7070;
+            border-color: #5c2630;
         }
 
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 18px;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
         }
 
         .card {
-            background: #0d2035;
-            border: 1px solid #1d3a57;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 5px 20px rgba(0,0,0,.2);
+            background: #0c1726;
+            border: 1px solid #1a2c42;
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
         }
 
-        .card h2 {
-            margin-top: 0;
-            font-size: 16px;
-            color: #8db8e8;
+        .label {
+            color: #71839c;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
         }
 
         .value {
-            font-size: 34px;
+            font-size: 35px;
             font-weight: bold;
-            margin: 12px 0;
-            color: #ffffff;
+            color: #4bbcff;
         }
 
         .unit {
-            color: #8ea6bf;
-            font-size: 14px;
+            color: #71839c;
+            margin-left: 4px;
         }
 
-        .timestamp {
+        .main {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .clock-wrapper {
+            text-align: center;
+        }
+
+        .clock {
+            position: relative;
+            width: 260px;
+            height: 260px;
+            margin: 20px auto;
+            border-radius: 50%;
+            border: 2px solid #24415e;
+            background:
+                radial-gradient(
+                    circle,
+                    #0d1c2e,
+                    #091422
+                );
+        }
+
+        .direction {
+            position: absolute;
+            color: #71839c;
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        .n {
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #4bbcff;
+        }
+
+        .e {
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .s {
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .w {
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .needle {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 4px;
+            height: 100px;
+            background: #4bbcff;
+            transform-origin: 50% 100%;
+            transform:
+                translate(-50%, -100%)
+                rotate(0deg);
+            border-radius: 5px;
+            box-shadow: 0 0 15px #4bbcff;
+            transition: transform 0.5s ease;
+        }
+
+        .center {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: white;
+            border-radius: 50%;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 8px white;
+        }
+
+        .angle {
+            font-size: 28px;
+            color: #4bbcff;
+            font-weight: bold;
+        }
+
+        .time {
+            color: #71839c;
             margin-top: 10px;
             font-size: 12px;
-            color: #718ba6;
         }
 
-        .section-title {
-            margin: 35px 0 15px;
+        .chart-box {
+            height: 350px;
         }
 
-        .ok {
-            color: #66ff99;
+        .raw {
+            margin-top: 20px;
         }
 
-        .error {
-            color: #ff6b6b;
+        .raw pre {
+            background: #02060c;
+            border: 1px solid #18283b;
+            border-radius: 10px;
+            padding: 15px;
+            overflow: auto;
+            max-height: 260px;
+            color: #9fb4cd;
+            font-size: 11px;
+            white-space: pre-wrap;
         }
 
-        canvas {
-            max-width: 100%;
+        @media (max-width: 850px) {
+            .grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .main {
+                grid-template-columns: 1fr;
+            }
         }
 
-        footer {
-            text-align: center;
-            padding: 25px;
-            color: #718ba6;
-            font-size: 12px;
+        @media (max-width: 550px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 28px;
+            }
+
+            .clock {
+                width: 220px;
+                height: 220px;
+            }
+
+            .needle {
+                height: 85px;
+            }
         }
     </style>
 </head>
 
 <body>
 
-<header>
-    <h1>Space Weather Prediction</h1>
-    <div id="status">Connecting to NOAA SWPC...</div>
-</header>
+<div class="container">
 
-<main>
+    <h1>Live Space Weather</h1>
 
-    <h2 class="section-title">Solar Wind</h2>
+    <div class="subtitle">
+        NOAA Solar Wind & Geomagnetic Conditions
+    </div>
+
+    <div id="status" class="status">
+        Connecting to NOAA SWPC...
+    </div>
 
     <div class="grid">
 
         <div class="card">
-            <h2>Solar Wind Speed</h2>
-            <div class="value">
-                <span id="solarSpeed">--</span>
-            </div>
-            <div class="unit">km/s</div>
+            <div class="label">IMF By</div>
+            <span id="by" class="value">--</span>
+            <span class="unit">nT</span>
         </div>
 
         <div class="card">
-            <h2>Solar Wind Density</h2>
-            <div class="value">
-                <span id="density">--</span>
-            </div>
-            <div class="unit">particles/cm³</div>
+            <div class="label">IMF Bz</div>
+            <span id="bz" class="value">--</span>
+            <span class="unit">nT</span>
         </div>
 
         <div class="card">
-            <h2>Proton Temperature</h2>
-            <div class="value">
-                <span id="temperature">--</span>
-            </div>
-            <div class="unit">K</div>
+            <div class="label">IMF Bt</div>
+            <span id="bt" class="value">--</span>
+            <span class="unit">nT</span>
+        </div>
+
+        <div class="card">
+            <div class="label">Solar Wind Speed</div>
+            <span id="speed" class="value">--</span>
+            <span class="unit">km/s</span>
         </div>
 
     </div>
 
+    <div class="main">
 
-    <h2 class="section-title">Interplanetary Magnetic Field</h2>
+        <div class="card clock-wrapper">
 
-    <div class="grid">
-
-        <div class="card">
-            <h2>By</h2>
-            <div class="value">
-                <span id="by">--</span>
+            <div class="label">
+                IMF Clock Angle
             </div>
-            <div class="unit">nT</div>
+
+            <div class="clock">
+
+                <div class="direction n">N</div>
+                <div class="direction e">E</div>
+                <div class="direction s">S</div>
+                <div class="direction w">W</div>
+
+                <div id="needle" class="needle"></div>
+
+                <div class="center"></div>
+
+            </div>
+
+            <div class="angle">
+                <span id="angle">--</span>°
+            </div>
+
+            <div id="magTime" class="time">
+                Waiting...
+            </div>
+
         </div>
 
         <div class="card">
-            <h2>Bz</h2>
-            <div class="value">
-                <span id="bz">--</span>
-            </div>
-            <div class="unit">nT</div>
-        </div>
 
-        <div class="card">
-            <h2>Bt</h2>
-            <div class="value">
-                <span id="bt">--</span>
-            </div>
-            <div class="unit">nT</div>
-        </div>
+            <div style="
+                display:flex;
+                justify-content:space-between;
+                align-items:center;
+                margin-bottom:15px;
+            ">
 
-        <div class="card">
-            <h2>Clock Angle</h2>
-            <div class="value">
-                <span id="clockAngle">--</span>
+                <div>
+                    <div class="label">
+                        Geomagnetic Activity
+                    </div>
+
+                    <div style="
+                        font-size:18px;
+                        font-weight:bold;
+                    ">
+                        Kp Index
+                    </div>
+                </div>
+
+                <div
+                    id="kp"
+                    style="
+                        font-size:32px;
+                        font-weight:bold;
+                        color:#4bbcff;
+                    "
+                >
+                    --
+                </div>
+
             </div>
-            <div class="unit">degrees</div>
+
+            <div class="chart-box">
+                <canvas id="kpChart"></canvas>
+            </div>
+
+            <div id="kpTime" class="time">
+                Waiting...
+            </div>
+
         </div>
 
     </div>
 
-
-    <h2 class="section-title">Geomagnetic Activity</h2>
-
-    <div class="grid">
+    <div class="raw">
 
         <div class="card">
-            <h2>Current Kp</h2>
-            <div class="value">
-                <span id="currentKp">--</span>
+
+            <div class="label">
+                Diagnostic Information
             </div>
-            <div class="unit">Kp index</div>
+
+            <pre id="diagnostic">
+Waiting for NOAA response...
+            </pre>
+
         </div>
 
     </div>
 
+</div>
 
-    <h2 class="section-title">Latest Measurements</h2>
-
-    <div class="grid">
-
-        <div class="card">
-            <h2>Solar Wind Speed</h2>
-            <div class="value">
-                <span id="speed2">--</span>
-            </div>
-            <div class="unit">km/s</div>
-            <div class="timestamp" id="windTime">--</div>
-        </div>
-
-        <div class="card">
-            <h2>Magnetic Field</h2>
-            <div class="value">
-                <span id="bt2">--</span>
-            </div>
-            <div class="unit">Bt / nT</div>
-            <div class="timestamp" id="magTime">--</div>
-        </div>
-
-    </div>
-
-</main>
-
-<footer>
-    Data source: NOAA Space Weather Prediction Center
-</footer>
-
+<!-- IMPORTANT: JavaScript is loaded only once -->
 <script src="script.js"></script>
 
 </body>
