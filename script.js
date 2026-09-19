@@ -1,40 +1,2000 @@
 "use strict";
 
 /*
- * ============================================================
- * NOAA SPACE WEATHER DATA
- * ============================================================
- */
 
-const NOAA = {
+============================================================
+SPACE WEATHER MONITOR
+Sources:
+NOAA SWPC:
+Solar wind:
+https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json
+IMF:
+https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json
+WDC Kyoto HAPI:
+https://wdc.kugi.kyoto-u.ac.jp/hapi/
+SMR:
+Requires a SuperMAG API key.
+============================================================
+*/
+/* ============================================================
+CONFIGURATION
+============================================================ */
+const CONFIG = {
+
+refreshMilliseconds: 60 * 1000,
+
+defaultHistoryHours: 6,
+
+maxNoaaPoints: 5000,
+
+/*
+ * Put your SuperMAG API key here if you have one.
+ *
+ * Example:
+ *
+ * smrApiKey: "YOUR_KEY_HERE"
+ *
+ * Leave empty to keep SMR disabled.
+ */
+smrApiKey: "",
+
+noaa: {
+
+    wind:
+        "https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json",
+
     magnetic:
         "https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json",
 
     kp:
-        "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json",
+        "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json"
+},
 
-    solarWind:
-        "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json"
+hapi: {
+
+    base:
+        "https://wdc.kugi.kyoto-u.ac.jp/hapi",
+
+    dst:
+        "hour_dst",
+
+    ae:
+        "min_ae",
+
+    symh:
+        "min_asysym",
+
+    kp:
+        "hour3h_kp"
+}
+
 };
+/* ============================================================
+APPLICATION STATE
+============================================================ */
 
-let kpChart = null;
+const state = {
 
+historyHours:
+    CONFIG.defaultHistoryHours,
 
-/*
- * ============================================================
- * HELPERS
- * ============================================================
- */
+wind: [],
+magnetic: [],
 
+kp: [],
+dst: [],
+ae: [],
+symh: [],
+smr: [],
+
+latest: {},
+
+charts: {}
+
+};
+/* ============================================================
+DOM HELPERS
+============================================================ */
+
+function byId(id) {
+
+return document.getElementById(id);
+
+}
 function setText(id, value) {
-    const element = document.getElementById(id);
 
-    if (element) {
-        element.textContent = value;
+const element = byId(id);
+
+if (element) {
+    element.textContent = value;
+}
+
+}
+function setStatus(message, error = false) {
+
+const status =
+    byId("status");
+
+const dot =
+    byId("statusDot");
+
+if (status) {
+    status.textContent =
+        message;
+}
+
+if (dot) {
+    dot.classList.toggle(
+        "error",
+        error
+    );
+}
+
+}
+/* ============================================================
+FETCH
+============================================================ */
+
+async function getJSON(url) {
+
+const separator =
+    url.includes("?")
+        ? "&"
+        : "?";
+
+const response =
+    await fetch(
+        url +
+        separator +
+        "_=" +
+        Date.now(),
+        {
+            cache: "no-store"
+        }
+    );
+
+if (!response.ok) {
+
+    throw new Error(
+        `HTTP ${response.status}`
+    );
+}
+
+return response.json();
+
+}
+/* ============================================================
+GENERAL HELPERS
+============================================================ */
+
+function number(value) {
+
+const n =
+    Number(value);
+
+return Number.isFinite(n)
+    ? n
+    : null;
+
+}
+function parseTime(value) {
+
+if (!value) {
+    return null;
+}
+
+const date =
+    new Date(value);
+
+return Number.isNaN(
+    date.getTime()
+)
+    ? null
+    : date;
+
+}
+function formatNumber(
+value,
+decimals = 1
+) {
+
+const n =
+    number(value);
+
+if (n === null) {
+    return "--";
+}
+
+return n.toFixed(decimals);
+
+}
+function formatUTC(value) {
+
+const date =
+    value instanceof Date
+        ? value
+        : parseTime(value);
+
+if (!date) {
+    return "--";
+}
+
+return date.toISOString()
+    .replace("T", " ")
+    .replace(".000Z", " UTC");
+
+}
+function findColumn(
+header,
+names
+) {
+
+if (!Array.isArray(header)) {
+    return -1;
+}
+
+const wanted =
+    names.map(
+        item =>
+            String(item)
+                .toLowerCase()
+                .trim()
+    );
+
+for (
+    let i = 0;
+    i < header.length;
+    i++
+) {
+
+    const name =
+        String(header[i])
+            .toLowerCase()
+            .trim();
+
+    if (
+        wanted.includes(name)
+    ) {
+        return i;
     }
 }
 
+return -1;
 
+}
+function findColumnContains(
+header,
+words
+) {
+
+if (!Array.isArray(header)) {
+    return -1;
+}
+
+for (
+    let i = 0;
+    i < header.length;
+    i++
+) {
+
+    const name =
+        String(header[i])
+            .toLowerCase()
+            .trim();
+
+    if (
+        words.some(
+            word =>
+                name.includes(
+                    word
+                )
+        )
+    ) {
+        return i;
+    }
+}
+
+return -1;
+
+}
+/* ============================================================
+NOAA TABLE PARSER
+============================================================ */
+
+function parseNoaaTable(
+data
+) {
+
+if (
+    !Array.isArray(data) ||
+    data.length < 2 ||
+    !Array.isArray(data[0])
+) {
+
+    throw new Error(
+        "Invalid NOAA table"
+    );
+}
+
+const header =
+    data[0];
+
+const rows = [];
+
+for (
+    let i = 1;
+    i < data.length;
+    i++
+) {
+
+    if (
+        !Array.isArray(data[i])
+    ) {
+        continue;
+    }
+
+    rows.push(
+        data[i]
+    );
+}
+
+return {
+    header,
+    rows
+};
+
+}
+/* ============================================================
+SOLAR WIND
+============================================================ */
+
+async function loadSolarWind() {
+
+const data =
+    await getJSON(
+        CONFIG.noaa.wind
+    );
+
+const table =
+    parseNoaaTable(data);
+
+const timeIndex =
+    findColumn(
+        table.header,
+        [
+            "time_tag",
+            "time",
+            "timestamp"
+        ]
+    );
+
+const speedIndex =
+    findColumn(
+        table.header,
+        [
+            "proton_speed",
+            "speed"
+        ]
+    );
+
+const temperatureIndex =
+    findColumn(
+        table.header,
+        [
+            "proton_temperature",
+            "temperature"
+        ]
+    );
+
+const densityIndex =
+    findColumn(
+        table.header,
+        [
+            "proton_density",
+            "density"
+        ]
+    );
+
+const records = [];
+
+for (
+    const row of table.rows
+) {
+
+    const time =
+        parseTime(
+            row[timeIndex]
+        );
+
+    if (!time) {
+        continue;
+    }
+
+    records.push({
+
+        time,
+
+        speed:
+            number(
+                row[speedIndex]
+            ),
+
+        temperature:
+            number(
+                row[temperatureIndex]
+            ),
+
+        density:
+            number(
+                row[densityIndex]
+            )
+    });
+}
+
+state.wind =
+    records
+        .filter(
+            row =>
+                row.speed !== null ||
+                row.temperature !== null ||
+                row.density !== null
+        )
+        .slice(
+            -CONFIG.maxNoaaPoints
+        );
+
+const latest =
+    state.wind[
+        state.wind.length - 1
+    ];
+
+if (latest) {
+
+    state.latest.speed =
+        latest.speed;
+
+    state.latest.temperature =
+        latest.temperature;
+
+    state.latest.density =
+        latest.density;
+
+    setText(
+        "speed",
+        formatNumber(
+            latest.speed,
+            0
+        )
+    );
+
+    setText(
+        "temperature",
+        latest.temperature === null
+            ? "--"
+            : Math.round(
+                latest.temperature
+            ).toLocaleString()
+    );
+
+    setText(
+        "density",
+        formatNumber(
+            latest.density,
+            2
+        )
+    );
+
+    setText(
+        "speedTime",
+        formatUTC(
+            latest.time
+        )
+    );
+
+    setText(
+        "temperatureTime",
+        formatUTC(
+            latest.time
+        )
+    );
+
+    setText(
+        "densityTime",
+        formatUTC(
+            latest.time
+        )
+    );
+}
+
+updateSolarWindChart();
+
+}
+/* ============================================================
+IMF
+============================================================ */
+
+async function loadMagnetic() {
+
+const data =
+    await getJSON(
+        CONFIG.noaa.magnetic
+    );
+
+const table =
+    parseNoaaTable(data);
+
+const timeIndex =
+    findColumn(
+        table.header,
+        [
+            "time_tag",
+            "time",
+            "timestamp"
+        ]
+    );
+
+const bxIndex =
+    findColumn(
+        table.header,
+        [
+            "bx_gsm",
+            "bx",
+            "b_x"
+        ]
+    );
+
+const byIndex =
+    findColumn(
+        table.header,
+        [
+            "by_gsm",
+            "by",
+            "b_y"
+        ]
+    );
+
+const bzIndex =
+    findColumn(
+        table.header,
+        [
+            "bz_gsm",
+            "bz",
+            "b_z"
+        ]
+    );
+
+const btIndex =
+    findColumn(
+        table.header,
+        [
+            "bt",
+            "bt_gsm",
+            "b_t"
+        ]
+    );
+
+const records = [];
+
+for (
+    const row of table.rows
+) {
+
+    const time =
+        parseTime(
+            row[timeIndex]
+        );
+
+    if (!time) {
+        continue;
+    }
+
+    records.push({
+
+        time,
+
+        bx:
+            number(
+                row[bxIndex]
+            ),
+
+        by:
+            number(
+                row[byIndex]
+            ),
+
+        bz:
+            number(
+                row[bzIndex]
+            ),
+
+        bt:
+            number(
+                row[btIndex]
+            )
+    });
+}
+
+state.magnetic =
+    records
+        .filter(
+            row =>
+                row.bx !== null ||
+                row.by !== null ||
+                row.bz !== null ||
+                row.bt !== null
+        )
+        .slice(
+            -CONFIG.maxNoaaPoints
+        );
+
+const latest =
+    state.magnetic[
+        state.magnetic.length - 1
+    ];
+
+if (latest) {
+
+    state.latest.bx =
+        latest.bx;
+
+    state.latest.by =
+        latest.by;
+
+    state.latest.bz =
+        latest.bz;
+
+    state.latest.bt =
+        latest.bt;
+
+    setText(
+        "bx",
+        formatNumber(
+            latest.bx,
+            1
+        )
+    );
+
+    setText(
+        "by",
+        formatNumber(
+            latest.by,
+            1
+        )
+    );
+
+    setText(
+        "bz",
+        formatNumber(
+            latest.bz,
+            1
+        )
+    );
+
+    setText(
+        "bt",
+        formatNumber(
+            latest.bt,
+            1
+        )
+    );
+
+    updateClockAngle(
+        latest.by,
+        latest.bz
+    );
+}
+
+updateImfChart();
+
+}
+/* ============================================================
+CLOCK ANGLE
+============================================================ */
+
+function updateClockAngle(
+by,
+bz
+) {
+
+if (
+    !Number.isFinite(by) ||
+    !Number.isFinite(bz)
+) {
+
+    setText(
+        "clockAngle",
+        "--"
+    );
+
+    setText(
+        "clockAngleLarge",
+        "--"
+    );
+
+    return;
+}
+
+/*
+ * Clock angle is measured from +Bz
+ * toward +By.
+ *
+ * Result is normalized to 0–360°.
+ */
+
+let angle =
+    Math.atan2(
+        by,
+        bz
+    ) *
+    180 /
+    Math.PI;
+
+if (angle < 0) {
+    angle += 360;
+}
+
+angle =
+    angle % 360;
+
+setText(
+    "clockAngle",
+    angle.toFixed(1)
+);
+
+setText(
+    "clockAngleLarge",
+    angle.toFixed(1)
+);
+
+const needle =
+    byId("clockNeedle");
+
+if (needle) {
+
+    needle.style.transform =
+        `rotate(${angle}deg)`;
+}
+
+}
+/* ============================================================
+HAPI
+============================================================ */
+
+async function hapiData(
+dataset,
+start,
+stop
+) {
+
+const url =
+    new URL(
+        CONFIG.hapi.base +
+        "/data"
+    );
+
+url.searchParams.set(
+    "id",
+    dataset
+);
+
+url.searchParams.set(
+    "time.min",
+    start.toISOString()
+);
+
+url.searchParams.set(
+    "time.max",
+    stop.toISOString()
+);
+
+url.searchParams.set(
+    "format",
+    "json"
+);
+
+return getJSON(
+    url.toString()
+);
+
+}
+/* ============================================================
+HAPI DATA NORMALIZATION
+============================================================ */
+
+function hapiRows(
+response
+) {
+
+if (
+    !response ||
+    !Array.isArray(
+        response.data
+    )
+) {
+
+    return [];
+}
+
+const parameters =
+    Array.isArray(
+        response.parameters
+    )
+        ? response.parameters
+        : [];
+
+const names =
+    parameters.map(
+        p => p.name
+    );
+
+const timeIndex =
+    names.findIndex(
+        name =>
+            String(name)
+                .toLowerCase()
+                === "time"
+    );
+
+const rows = [];
+
+for (
+    const row of response.data
+) {
+
+    if (
+        !Array.isArray(row)
+    ) {
+        continue;
+    }
+
+    const time =
+        parseTime(
+            row[
+                timeIndex >= 0
+                    ? timeIndex
+                    : 0
+            ]
+        );
+
+    if (!time) {
+        continue;
+    }
+
+    rows.push({
+        time,
+        row,
+        names
+    });
+}
+
+return rows;
+
+}
+function hapiValue(
+record,
+preferredNames
+) {
+
+const wanted =
+    preferredNames.map(
+        name =>
+            String(name)
+                .toLowerCase()
+    );
+
+for (
+    let i = 0;
+    i < record.names.length;
+    i++
+) {
+
+    const name =
+        String(
+            record.names[i]
+        )
+            .toLowerCase();
+
+    if (
+        wanted.includes(name)
+    ) {
+
+        return number(
+            record.row[i]
+        );
+    }
+}
+
+return null;
+
+}
+/* ============================================================
+LOAD Dst
+============================================================ */
+
+async function loadDst(
+start,
+stop
+) {
+
+const response =
+    await hapiData(
+        CONFIG.hapi.dst,
+        start,
+        stop
+    );
+
+const rows =
+    hapiRows(response);
+
+state.dst =
+    rows.map(
+        record => ({
+
+            time:
+                record.time,
+
+            value:
+                hapiValue(
+                    record,
+                    [
+                        "dstValue",
+                        "dst"
+                    ]
+                )
+        })
+    )
+    .filter(
+        row =>
+            row.value !== null
+    );
+
+const latest =
+    state.dst[
+        state.dst.length - 1
+    ];
+
+if (latest) {
+
+    setText(
+        "dst",
+        formatNumber(
+            latest.value,
+            0
+        )
+    );
+
+    setText(
+        "dstTime",
+        formatUTC(
+            latest.time
+        )
+    );
+}
+
+updateSingleChart(
+    "dstChart",
+    "Dst",
+    state.dst,
+    "#ff6b6b",
+    {
+        min: -300
+    }
+);
+
+}
+/* ============================================================
+LOAD AE
+============================================================ */
+
+async function loadAe(
+start,
+stop
+) {
+
+const response =
+    await hapiData(
+        CONFIG.hapi.ae,
+        start,
+        stop
+    );
+
+const rows =
+    hapiRows(response);
+
+state.ae =
+    rows.map(
+        record => ({
+
+            time:
+                record.time,
+
+            value:
+                hapiValue(
+                    record,
+                    [
+                        "ae",
+                        "aeValue"
+                    ]
+                )
+        })
+    )
+    .filter(
+        row =>
+            row.value !== null
+    );
+
+const latest =
+    state.ae[
+        state.ae.length - 1
+    ];
+
+if (latest) {
+
+    setText(
+        "ae",
+        formatNumber(
+            latest.value,
+            0
+        )
+    );
+
+    setText(
+        "aeTime",
+        formatUTC(
+            latest.time
+        )
+    );
+}
+
+updateSingleChart(
+    "aeChart",
+    "AE",
+    state.ae,
+    "#ffd166",
+    {
+        min: 0
+    }
+);
+
+}
+/* ============================================================
+LOAD SYM-H
+============================================================ */
+
+async function loadSymh(
+start,
+stop
+) {
+
+const response =
+    await hapiData(
+        CONFIG.hapi.symh,
+        start,
+        stop
+    );
+
+const rows =
+    hapiRows(response);
+
+state.symh =
+    rows.map(
+        record => ({
+
+            time:
+                record.time,
+
+            value:
+                hapiValue(
+                    record,
+                    [
+                        "symh",
+                        "symhValue"
+                    ]
+                )
+        })
+    )
+    .filter(
+        row =>
+            row.value !== null
+    );
+
+const latest =
+    state.symh[
+        state.symh.length - 1
+    ];
+
+if (latest) {
+
+    setText(
+        "symh",
+        formatNumber(
+            latest.value,
+            0
+        )
+    );
+
+    setText(
+        "symhTime",
+        formatUTC(
+            latest.time
+        )
+    );
+}
+
+updateSingleChart(
+    "symhChart",
+    "SYM-H",
+    state.symh,
+    "#a78bfa",
+    {
+        min: -300
+    }
+);
+
+}
+/* ============================================================
+LOAD Kp
+============================================================ */
+
+async function loadKp(
+start,
+stop
+) {
+
+/*
+ * Use the NOAA 1-minute Kp feed first.
+ * This preserves the existing source used
+ * by your website.
+ */
+
+try {
+
+    const data =
+        await getJSON(
+            CONFIG.noaa.kp
+        );
+
+    const table =
+        parseNoaaTable(data);
+
+    const timeIndex =
+        findColumn(
+            table.header,
+            [
+                "time_tag",
+                "time"
+            ]
+        );
+
+    const kpIndex =
+        findColumn(
+            table.header,
+            [
+                "kp_index",
+                "kp"
+            ]
+        );
+
+    const records = [];
+
+    for (
+        const row of table.rows
+    ) {
+
+        const time =
+            parseTime(
+                row[timeIndex]
+            );
+
+        const kp =
+            number(
+                row[kpIndex]
+            );
+
+        if (
+            time &&
+            kp !== null &&
+            time >= start
+        ) {
+
+            records.push({
+                time,
+                value: kp
+            });
+        }
+    }
+
+    state.kp =
+        records;
+
+} catch (error) {
+
+    console.warn(
+        "NOAA Kp failed, trying HAPI",
+        error
+    );
+
+    const response =
+        await hapiData(
+            CONFIG.hapi.kp,
+            start,
+            stop
+        );
+
+    const rows =
+        hapiRows(response);
+
+    state.kp =
+        rows.map(
+            record => ({
+
+                time:
+                    record.time,
+
+                value:
+                    hapiValue(
+                        record,
+                        [
+                            "kp",
+                            "kpIndex",
+                            "kpValue"
+                        ]
+                    )
+            })
+        )
+        .filter(
+            row =>
+                row.value !== null
+        );
+}
+
+const latest =
+    state.kp[
+        state.kp.length - 1
+    ];
+
+if (latest) {
+
+    setText(
+        "kp",
+        formatNumber(
+            latest.value,
+            1
+        )
+    );
+
+    setText(
+        "kpTime",
+        formatUTC(
+            latest.time
+        )
+    );
+}
+
+updateSingleChart(
+    "kpChart",
+    "Kp",
+    state.kp,
+    "#42b9ff",
+    {
+        min: 0,
+        max: 9
+    }
+);
+
+}
+/* ============================================================
+SMR
+============================================================ */
+
+async function loadSmr(
+start,
+stop
+) {
+
+/*
+ * SuperMAG requires authentication.
+ *
+ * We deliberately do not fabricate SMR values.
+ */
+
+if (
+    !CONFIG.smrApiKey
+) {
+
+    setText(
+        "smr",
+        "--"
+    );
+
+    const message =
+        byId("smrMessage");
+
+    if (message) {
+
+        message.innerHTML =
+            "SMR is ready in the dashboard, " +
+            "but SuperMAG requires an API key. " +
+            "Add your key to <code>CONFIG.smrApiKey</code> " +
+            "in script.js.";
+    }
+
+    return;
+}
+
+/*
+ * SuperMAG endpoint details can vary with the
+ * account/API version. Keep this function isolated
+ * so the rest of the dashboard does not depend on it.
+ *
+ * Replace this request with the endpoint supplied
+ * with your SuperMAG API credentials.
+ */
+
+console.warn(
+    "SMR API key supplied but the SuperMAG endpoint " +
+    "has not been configured."
+);
+
+setText(
+    "smr",
+    "--"
+);
+
+}
+/* ============================================================
+CHART HELPERS
+============================================================ */
+
+function destroyChart(
+id
+) {
+
+if (
+    state.charts[id]
+) {
+
+    state.charts[id].destroy();
+
+    delete state.charts[id];
+}
+
+}
+function chartLabels(
+records
+) {
+
+return records.map(
+    record => {
+
+        const date =
+            record.time;
+
+        return date.toLocaleTimeString(
+            "en-GB",
+            {
+                hour: "2-digit",
+                minute: "2-digit",
+                timeZone: "UTC"
+            }
+        );
+    }
+);
+
+}
+function chartData(
+records
+) {
+
+return records.map(
+    record =>
+        record.value
+);
+
+}
+function createLineChart(
+id,
+labels,
+datasets,
+options = {}
+) {
+
+const canvas =
+    byId(id);
+
+if (
+    !canvas ||
+    typeof Chart === "undefined"
+) {
+    return;
+}
+
+destroyChart(id);
+
+state.charts[id] =
+    new Chart(
+        canvas,
+        {
+            type: "line",
+
+            data: {
+                labels,
+
+                datasets
+            },
+
+            options: {
+
+                responsive: true,
+
+                maintainAspectRatio:
+                    false,
+
+                animation: false,
+
+                interaction: {
+                    mode: "index",
+                    intersect: false
+                },
+
+                plugins: {
+
+                    legend: {
+                        labels: {
+                            color:
+                                "#8293ad"
+                        }
+                    },
+
+                    tooltip: {
+                        callbacks: {
+
+                            title(items) {
+
+                                if (
+                                    !items.length
+                                ) {
+                                    return "";
+                                }
+
+                                return (
+                                    items[0]
+                                        .label +
+                                    " UTC"
+                                );
+                            }
+                        }
+                    }
+                },
+
+                scales: {
+
+                    x: {
+
+                        ticks: {
+                            color:
+                                "#647894",
+
+                            maxTicksLimit:
+                                12
+                        },
+
+                        grid: {
+                            color:
+                                "rgba(120,150,190,.06)"
+                        }
+                    },
+
+                    y: {
+
+                        min:
+                            options.min,
+
+                        max:
+                            options.max,
+
+                        ticks: {
+                            color:
+                                "#71839c"
+                        },
+
+                        grid: {
+                            color:
+                                "rgba(120,150,190,.10)"
+                        }
+                    }
+                }
+            }
+        }
+    );
+
+}
+function updateSingleChart(
+id,
+label,
+records,
+color,
+options = {}
+) {
+
+if (
+    !records ||
+    records.length === 0
+) {
+    return;
+}
+
+createLineChart(
+    id,
+    chartLabels(records),
+    [
+        {
+            label,
+
+            data:
+                chartData(records),
+
+            borderColor:
+                color,
+
+            backgroundColor:
+                color.replace(
+                    ")",
+                    ", 0.10)"
+                ),
+
+            borderWidth: 2,
+
+            pointRadius: 0,
+
+            pointHoverRadius: 4,
+
+            tension: 0.15,
+
+            fill: true
+        }
+    ],
+    options
+);
+
+}
+/* ============================================================
+SOLAR WIND CHART
+============================================================ */
+
+function updateSolarWindChart() {
+
+const cutoff =
+    Date.now() -
+    CONFIG.historyHours *
+    60 *
+    60 *
+    1000;
+
+const records =
+    state.wind.filter(
+        row =>
+            row.time.getTime() >=
+            cutoff
+    );
+
+if (
+    records.length === 0
+) {
+    return;
+}
+
+const labels =
+    records.map(
+        row =>
+            row.time.toLocaleTimeString(
+                "en-GB",
+                {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "UTC"
+                }
+            )
+    );
+
+createLineChart(
+    "solarWindChart",
+    labels,
+    [
+        {
+            label: "Speed (km/s)",
+
+            data:
+                records.map(
+                    row =>
+                        row.speed
+                ),
+
+            borderColor:
+                "#42f2a3",
+
+            backgroundColor:
+                "rgba(66,242,163,0.06)",
+
+            borderWidth: 2,
+
+            pointRadius: 0,
+
+            tension: 0.15,
+
+            yAxisID:
+                "speed"
+        },
+
+        {
+            label: "Temperature (K)",
+
+            data:
+                records.map(
+                    row =>
+                        row.temperature
+                ),
+
+            borderColor:
+                "#ffd166",
+
+            borderWidth: 1.5,
+
+            pointRadius: 0,
+
+            tension: 0.15,
+
+            yAxisID:
+                "temperature"
+        },
+
+        {
+            label: "Density (cm⁻³)",
+
+            data:
+                records.map(
+                    row =>
+                        row.density
+                ),
+
+            borderColor:
+                "#42b9ff",
+
+            borderWidth: 1.5,
+
+            pointRadius: 0,
+
+            tension: 0.15,
+
+            yAxisID:
+                "density"
+        }
+    ]
+);
+
+}
+/* ============================================================
+IMF CHART
+============================================================ */
+
+function updateImfChart() {
+
+const cutoff =
+    Date.now() -
+    CONFIG.historyHours *
+    60 *
+    60 *
+    1000;
+
+const records =
+    state.magnetic.filter(
+        row =>
+            row.time.getTime() >=
+            cutoff
+    );
+
+if (
+    records.length === 0
+) {
+    return;
+}
+
+const labels =
+    records.map(
+        row =>
+            row.time.toLocaleTimeString(
+                "en-GB",
+                {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "UTC"
+                }
+            )
+    );
+
+createLineChart(
+    "imfChart",
+    labels,
+    [
+        {
+            label: "Bx",
+
+            data:
+                records.map(
+                    row =>
+                        row.bx
+                ),
+
+            borderColor:
+                "#a78bfa",
+
+            borderWidth: 1.5,
+
+            pointRadius: 0,
+
+            tension: 0.15
+        },
+
+        {
+            label: "By",
+
+            data:
+                records.map(
+                    row =>
+                        row.by
+                ),
+
+            borderColor:
+                "#42b9ff",
+
+            borderWidth: 1.5,
+
+            pointRadius: 0,
+
+            tension: 0.15
+        },
+
+        {
+            label: "Bz",
+
+            data:
+                records.map(
+                    row =>
+                        row.bz
+                ),
+
+            borderColor:
+                "#ff6b6b",
+
+            borderWidth: 2,
+
+            pointRadius: 0,
+
+            tension: 0.15
+        },
+
+        {
+            label: "Bt",
+
+            data:
+                records.map(
+                    row =>
+                        row.bt
+                ),
+
+            borderColor:
+                "#42f2a3",
+
+            borderWidth: 2,
+
+            pointRadius: 0,
+
+            tension: 0.15
+        }
+    ]
+);
+
+}
+/* ============================================================
+LOAD GEOMAGNETIC DATA
+============================================================ */
+
+async function loadGeomagnetic() {
+
+const stop =
+    new Date();
+
+const start =
+    new Date(
+        stop.getTime() -
+        CONFIG.historyHours *
+        60 *
+        60 *
+        1000
+    );
+
+/*
+ * Load independently.
+ *
+ * This means a failure in AE does not
+ * prevent Dst, Kp or SYM-H from displaying.
+ */
+
+const results =
+    await Promise.allSettled(
+        [
+            loadKp(
+                start,
+                stop
+            ),
+
+            loadDst(
+                start,
+                stop
+            ),
+
+            loadAe(
+                start,
+                stop
+            ),
+
+            loadSymh(
+                start,
+                stop
+            ),
+
+            loadSmr(
+                start,
+                stop
+            )
+        ]
+    );
+
+results.forEach(
+    (result, index) => {
+
+        if (
+            result.status ===
+            "rejected"
+        ) {
+
+            console.error(
+                "Geomagnetic source failed:",
+                index,
+                result.reason
+            );
+        }
+    }
+);
+
+}
+/* ============================================================
+RANGE BUTTONS
+============================================================ */
+
+function setupRangeButtons() {
+
+document
+    .querySelectorAll(
+        ".range-button"
+    )
+    .forEach(
+        button => {
+
+            button.addEventListener(
+                "click",
+                async () => {
+
+                    const hours =
+                        Number(
+                            button.dataset
+                                .hours
+                        );
+
+                    if (
+                        !Number.isFinite(
+                            hours
+                        )
+                    ) {
+                        return;
+                    }
+
+                    state.historyHours =
+                        hours;
+
+                    document
+                        .querySelectorAll(
+                            ".range-button"
+                        )
+                        .forEach(
+                            item =>
+                                item.classList
+                                    .remove(
+                                        "active"
+                                    )
+                        );
+
+                    button.classList.add(
+                        "active"
+                    );
+
+                    await loadGeomagnetic();
+
+                    updateSolarWindChart();
+
+                    updateImfChart();
+                }
+            );
+        }
+    );
+
+}
+/* ============================================================
+UPDATE
+============================================================ */
+
+async function updateAll() {
+
+setStatus(
+    "Updating…"
+);
+
+const results =
+    await Promise.allSettled(
+        [
+            loadSolarWind(),
+            loadMagnetic(),
+            loadGeomagnetic()
+        ]
+    );
+
+const failures =
+    results.filter(
+        result =>
+            result.status ===
+            "rejected"
+    );
+
+if (
+    failures.length === 0
+) {
+
+    setStatus(
+        "Live data connected"
+    );
+
+} else {
+
+    setStatus(
+        `${failures.length} data source(s) unavailable`,
+        true
+    );
+}
+
+setText(
+    "lastUpdate",
+    formatUTC(
+        new Date()
+    )
+);
+
+}
+/* ============================================================
+START
+============================================================ */
+
+setupRangeButtons();
+
+updateAll();
+
+/* ============================================================
+AUTOMATIC REFRESH
+============================================================ */
+
+setInterval(
+updateAll,
+CONFIG.refreshMilliseconds
+);
 function setStatus(message, error = false) {
     const element = document.getElementById("status");
 
