@@ -1,362 +1,266 @@
+```javascript
 "use strict";
 
 const API = {
-speed:
-"https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json",
+    solarWind:
+        "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json",
 
-magnetic:
-"https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json",
+    magneticField:
+        "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json",
 
-kp:
-"https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
+    kp:
+        "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
 };
 
-const REFRESH_TIME = 5 * 60 * 1000;
+const $ = (id) => document.getElementById(id);
 
 function setText(id, value) {
-const element = document.getElementById(id);
+    const element = $(id);
 
-if (element) {
-element.textContent = value;
-}
-}
+    if (!element) {
+        console.error(`Missing HTML element: #${id}`);
+        return;
+    }
 
-function formatNumber(value, decimals = 1) {
-const number = Number(value);
-
-if (!Number.isFinite(number)) {
-return "--";
+    element.textContent = value;
 }
 
-return number.toFixed(decimals);
-}
+function setConnection(online, message) {
+    const dot = $("status-dot");
+    const status = $("connection-status");
 
-function formatTime(value) {
-if (!value) {
-return "--";
-}
+    if (dot) {
+        dot.classList.toggle("online", online);
+        dot.classList.toggle("offline", !online);
+    }
 
-const date = new Date(value);
-
-if (Number.isNaN(date.getTime())) {
-return value;
-}
-
-return date.toLocaleString();
-}
-
-function setConnection(connected) {
-setText(
-"connection-status",
-connected ? "Connected" : "Connection error"
-);
-
-const dot = document.getElementById("status-dot");
-
-if (dot) {
-dot.classList.toggle("online", connected);
-dot.classList.toggle("offline", !connected);
-}
+    if (status) {
+        status.textContent = message;
+    }
 }
 
 function showError(message) {
-const error = document.getElementById("error-message");
+    const error = $("error-message");
 
-if (!error) {
-return;
-}
+    if (error) {
+        error.textContent = message;
+        error.hidden = false;
+    }
 
-error.textContent = message;
-error.classList.remove("hidden");
+    console.error(message);
 }
 
 function hideError() {
-const error = document.getElementById("error-message");
+    const error = $("error-message");
 
-if (error) {
-error.classList.add("hidden");
-}
-}
-
-async function getJSON(url) {
-const response = await fetch(url, {
-cache: "no-store"
-});
-
-if (!response.ok) {
-throw new Error(
-`NOAA request failed: ${response.status}`
-);
+    if (error) {
+        error.hidden = true;
+    }
 }
 
-return response.json();
+function formatNumber(value, decimals = 0) {
+    const number = Number(value);
+
+    if (!Number.isFinite(number)) {
+        return "--";
+    }
+
+    return number.toFixed(decimals);
 }
 
-/* ================================
-SOLAR WIND
-================================ */
+function formatTime(value) {
+    if (!value) {
+        return "--";
+    }
 
-async function loadSolarWind() {
-const data = await getJSON(API.speed);
+    const date = new Date(value);
 
-console.log("NOAA solar wind:", data);
+    if (Number.isNaN(date.getTime())) {
+        return "--";
+    }
 
-if (!Array.isArray(data) || !data.length) {
-throw new Error("No solar-wind data received.");
+    return date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+    });
 }
 
-const latest = data[0];
+async function fetchJSON(url) {
+    const controller = new AbortController();
 
-const speed = Number(latest.proton_speed);
-const time = latest.time_tag;
+    const timeout = setTimeout(() => {
+        controller.abort();
+    }, 15000);
 
-setText(
-"solar-wind-speed",
-formatNumber(speed, 0)
-);
+    try {
+        const response = await fetch(`${url}?_=${Date.now()}`, {
+            method: "GET",
+            cache: "no-store",
+            mode: "cors",
+            signal: controller.signal
+        });
 
-setText(
-"summary-speed",
-Number.isFinite(speed)
-? `${formatNumber(speed, 0)} km/s`
-: "-- km/s"
-);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status} from ${url}`);
+        }
 
-setText(
-"speed-status",
-Number.isFinite(speed)
-? "Current measurement"
-: "No data"
-);
-
-if (time) {
-setText(
-"last-update",
-formatTime(time)
-);
-}
+        return await response.json();
+    } finally {
+        clearTimeout(timeout);
+    }
 }
 
-/* ================================
-MAGNETIC FIELD
-================================ */
+function updateSolarWind(data) {
+    if (!Array.isArray(data) || !data.length) {
+        throw new Error("Solar wind API returned no data.");
+    }
 
-async function loadMagneticField() {
-const data = await getJSON(API.magnetic);
+    const latest = data[0];
 
-console.log("NOAA magnetic field:", data);
+    const speed = Number(latest.proton_speed);
 
-if (!Array.isArray(data) || !data.length) {
-throw new Error("No magnetic-field data received.");
+    if (!Number.isFinite(speed)) {
+        throw new Error("Solar wind speed is missing from NOAA response.");
+    }
+
+    setText("solar-wind-speed", formatNumber(speed));
+    setText("summary-speed", `${formatNumber(speed)} km/s`);
+
+    if (speed < 400) {
+        setText("speed-status", "Low");
+    } else if (speed < 500) {
+        setText("speed-status", "Normal");
+    } else if (speed < 700) {
+        setText("speed-status", "Elevated");
+    } else {
+        setText("speed-status", "High");
+    }
+
+    return latest.time_tag;
 }
 
-const latest = data[0];
+function updateMagneticField(data) {
+    if (!Array.isArray(data) || !data.length) {
+        throw new Error("Magnetic field API returned no data.");
+    }
 
-const bt = Number(latest.bt);
-const bz = Number(latest.bz_gsm);
+    const latest = data[0];
 
-/*
+    const bt = Number(latest.bt);
+    const bz = Number(latest.bz_gsm);
 
-* The summary endpoint provides Bt and Bz.
-*
-* Bx and By are not supplied by this summary product,
-* so we deliberately display -- instead of inventing values.
-  */
+    setText("bx", "--");
+    setText("by", "--");
 
-setText("bx", "--");
-setText("by", "--");
+    setText("bz", formatNumber(bz, 1));
+    setText("bt", formatNumber(bt, 1));
+    setText("summary-bz", `${formatNumber(bz, 1)} nT`);
+    setText("summary-bt", `${formatNumber(bt, 1)} nT`);
 
-setText(
-"bz",
-formatNumber(bz, 1)
-);
+    if (bz <= -10) {
+        setText("speed-status", "Check Bz");
+    }
 
-setText(
-"bt",
-formatNumber(bt, 1)
-);
+    setText("clock-angle", "--");
 
-setText(
-"summary-bz",
-Number.isFinite(bz)
-? `${formatNumber(bz, 1)} nT`
-: "-- nT"
-);
-
-setText(
-"summary-bt",
-Number.isFinite(bt)
-? `${formatNumber(bt, 1)} nT`
-: "-- nT"
-);
-
-/*
-
-* Clock angle cannot be calculated reliably
-* without By, so don't display a fake value.
-  */
-
-setText("clock-angle", "--");
-
-if (latest.time_tag) {
-setText(
-"last-update",
-formatTime(latest.time_tag)
-);
-}
+    return latest.time_tag;
 }
 
-/* ================================
-KP INDEX
-================================ */
+function updateKp(data) {
+    if (!Array.isArray(data) || !data.length) {
+        throw new Error("Kp API returned no data.");
+    }
 
-async function loadKp() {
-const data = await getJSON(API.kp);
+    const latest = data[data.length - 1];
 
-console.log("NOAA Kp:", data);
+    const kp = Number(latest.Kp);
 
-if (!Array.isArray(data) || !data.length) {
-throw new Error("No Kp data received.");
+    if (!Number.isFinite(kp)) {
+        throw new Error("Kp value is missing from NOAA response.");
+    }
+
+    setText("kp-index", formatNumber(kp, 2));
+    setText("summary-kp", `Kp ${formatNumber(kp, 2)}`);
+
+    let description;
+
+    if (kp < 2) {
+        description = "Quiet";
+    } else if (kp < 4) {
+        description = "Unsettled";
+    } else if (kp < 5) {
+        description = "Active";
+    } else if (kp < 6) {
+        description = "Minor storm";
+    } else if (kp < 8) {
+        description = "Moderate storm";
+    } else {
+        description = "Strong storm";
+    }
+
+    setText("kp-description", description);
+
+    return latest.time_tag;
 }
-
-/*
-
-* NOAA currently returns objects like:
-*
-* {
-* "time_tag": "...",
-* "Kp": 1.67,
-* "a_running": 6,
-* "station_count": 8
-* }
-  */
-
-const latest = data[data.length - 1];
-
-const kp = Number(latest.Kp);
-
-if (!Number.isFinite(kp)) {
-throw new Error("Invalid Kp value received.");
-}
-
-setText(
-"kp-index",
-formatNumber(kp, 2)
-);
-
-setText(
-"summary-kp",
-formatNumber(kp, 2)
-);
-
-setText(
-"kp-description",
-describeKp(kp)
-);
-
-if (latest.time_tag) {
-setText(
-"last-update",
-formatTime(latest.time_tag)
-);
-}
-}
-
-function describeKp(kp) {
-if (kp < 3) {
-return "Quiet";
-}
-
-if (kp < 4) {
-return "Unsettled";
-}
-
-if (kp < 5) {
-return "Active";
-}
-
-if (kp < 6) {
-return "Minor geomagnetic storm";
-}
-
-if (kp < 7) {
-return "Moderate geomagnetic storm";
-}
-
-if (kp < 8) {
-return "Strong geomagnetic storm";
-}
-
-if (kp < 9) {
-return "Severe geomagnetic storm";
-}
-
-return "Extreme geomagnetic storm";
-}
-
-/* ================================
-UPDATE EVERYTHING
-================================ */
 
 async function updateAll() {
-hideError();
+    console.log("Space Weather Monitor: starting update...");
 
-setConnection(false);
+    setConnection(false, "Connecting...");
+    hideError();
 
-try {
-await Promise.all([
-loadSolarWind(),
-loadMagneticField(),
-loadKp()
-]);
+    try {
+        const [solarWind, magneticField, kp] = await Promise.all([
+            fetchJSON(API.solarWind),
+            fetchJSON(API.magneticField),
+            fetchJSON(API.kp)
+        ]);
 
-```
-setConnection(true);
+        console.log("NOAA solar wind:", solarWind);
+        console.log("NOAA magnetic field:", magneticField);
+        console.log("NOAA Kp:", kp);
 
-console.log(
-  "Space weather data successfully updated."
-);
-```
+        const solarTime = updateSolarWind(solarWind);
+        updateMagneticField(magneticField);
+        updateKp(kp);
 
-} catch (error) {
+        const updateTime = solarTime || new Date().toISOString();
 
-```
-console.error(
-  "Space weather update failed:",
-  error
-);
+        setText("last-update", `Updated ${formatTime(updateTime)}`);
 
-setConnection(false);
+        setConnection(true, "Connected");
 
-showError(
-  error.message ||
-  "Unable to retrieve NOAA data."
-);
-```
+        console.log("Space Weather Monitor: update successful.");
+    } catch (error) {
+        console.error("Space Weather Monitor error:", error);
 
+        setConnection(false, "Connection error");
+
+        showError(
+            `Unable to load NOAA data: ${
+                error && error.message
+                    ? error.message
+                    : "Unknown error"
+            }`
+        );
+    }
 }
+
+function start() {
+    console.log("Space Weather Monitor JavaScript loaded.");
+
+    setConnection(false, "Connecting...");
+
+    updateAll();
+
+    // NOAA data does not need to be requested every second.
+    setInterval(updateAll, 60000);
 }
 
-/* ================================
-START
-================================ */
-
-document.addEventListener(
-"DOMContentLoaded",
-() => {
-
-```
-console.log(
-  "Space Weather Monitor started."
-);
-
-updateAll();
-
-setInterval(
-  updateAll,
-  REFRESH_TIME
-);
-```
-
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+} else {
+    start();
 }
-);
+```
