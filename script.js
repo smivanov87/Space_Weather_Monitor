@@ -1,46 +1,42 @@
+/*
+ * Space Weather Prediction Dashboard
+ *
+ * Data source:
+ * NOAA Space Weather Prediction Center
+ *
+ * Solar wind:
+ * rtsw_wind_1m.json
+ *
+ * Magnetic field:
+ * rtsw_mag_1m.json
+ *
+ * Kp:
+ * planetary_k_index_1m.json
+ */
+
+"use strict";
+
+
+// ------------------------------------------------------------
+// NOAA DATA URLS
+// ------------------------------------------------------------
+
+const WIND_URL =
+    "https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json";
+
 const MAG_URL =
     "https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json";
 
 const KP_URL =
     "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json";
 
-const SPEED_URL =
-    "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json";
 
-let chart = null;
-
-
-/* =====================================================
-   FETCH
-===================================================== */
-
-async function getJSON(url) {
-
-    const response = await fetch(
-        url + "?_=" + Date.now(),
-        {
-            cache: "no-store"
-        }
-    );
-
-    if (!response.ok) {
-        throw new Error(
-            "HTTP " + response.status
-        );
-    }
-
-    return await response.json();
-}
-
-
-/* =====================================================
-   TEXT
-===================================================== */
+// ------------------------------------------------------------
+// HELPERS
+// ------------------------------------------------------------
 
 function setText(id, value) {
-
-    const element =
-        document.getElementById(id);
+    const element = document.getElementById(id);
 
     if (element) {
         element.textContent = value;
@@ -48,903 +44,582 @@ function setText(id, value) {
 }
 
 
-/* =====================================================
-   STATUS
-===================================================== */
+function number(value, decimals = 1) {
+    const n = Number(value);
 
-function setStatus(message, error = false) {
+    if (!Number.isFinite(n)) {
+        return "--";
+    }
 
-    const element =
-        document.getElementById("status");
-
-    if (!element) return;
-
-    element.textContent = message;
-
-    element.className =
-        error
-            ? "status error"
-            : "status ok";
+    return n.toFixed(decimals);
 }
 
 
-/* =====================================================
-   MAGNETIC DATA
-===================================================== */
+function getLatestRecord(data) {
 
-async function loadMagnetic() {
+    if (!Array.isArray(data) || data.length < 2) {
+        return null;
+    }
+
+    const headers = data[0];
+
+    const rows = data
+        .slice(1)
+        .filter(row => Array.isArray(row));
+
+    if (!rows.length) {
+        return null;
+    }
+
+    const row = rows[rows.length - 1];
+
+    const record = {};
+
+    headers.forEach((header, index) => {
+        record[header] = row[index];
+    });
+
+    return record;
+}
+
+
+function findValue(record, possibleNames) {
+
+    if (!record) {
+        return null;
+    }
+
+    for (const name of possibleNames) {
+
+        if (
+            Object.prototype.hasOwnProperty.call(record, name) &&
+            record[name] !== null &&
+            record[name] !== undefined &&
+            record[name] !== ""
+        ) {
+            return record[name];
+        }
+    }
+
+    return null;
+}
+
+
+function formatTime(record) {
+
+    if (!record) {
+        return "--";
+    }
+
+    const time =
+        findValue(record, [
+            "time_tag",
+            "time",
+            "timestamp",
+            "date"
+        ]);
+
+    if (!time) {
+        return "--";
+    }
+
+    const date = new Date(time);
+
+    if (Number.isNaN(date.getTime())) {
+        return String(time);
+    }
+
+    return date.toLocaleString();
+}
+
+
+// ------------------------------------------------------------
+// SOLAR WIND
+// ------------------------------------------------------------
+
+async function loadSolarWindData() {
 
     try {
 
-        const data =
-            await getJSON(MAG_URL);
-
-
-        console.log(
-            "NOAA MAG DATA:",
-            data
+        const response = await fetch(
+            WIND_URL + "?t=" + Date.now(),
+            {
+                cache: "no-store"
+            }
         );
 
-
-        /*
-         * NOAA RTSW data can contain rows with
-         * the column names in the first row.
-         *
-         * We find the columns dynamically.
-         */
-
-
-        if (
-            !Array.isArray(data) ||
-            data.length < 2
-        ) {
-
+        if (!response.ok) {
             throw new Error(
-                "NOAA magnetic response is empty"
+                `Solar wind HTTP ${response.status}`
             );
         }
 
+        const data = await response.json();
 
-        const header =
-            data[0];
-
-
-        console.log(
-            "NOAA MAG HEADER:",
-            header
-        );
-
-
-        /*
-         * Find a column by several possible names.
-         */
-
-        function findColumn(names) {
-
-            for (
-                let i = 0;
-                i < header.length;
-                i++
-            ) {
-
-                const name =
-                    String(header[i])
-                        .toLowerCase()
-                        .trim();
-
-
-                if (
-                    names.includes(name)
-                ) {
-
-                    return i;
-                }
-            }
-
-
-            return -1;
-        }
-
-
-        const timeColumn =
-            findColumn([
-                "time_tag",
-                "time",
-                "timestamp"
-            ]);
-
-
-        const byColumn =
-            findColumn([
-                "by_gsm",
-                "by",
-                "b_y"
-            ]);
-
-
-        const bzColumn =
-            findColumn([
-                "bz_gsm",
-                "bz",
-                "b_z"
-            ]);
-
-
-        const btColumn =
-            findColumn([
-                "bt",
-                "bt_gsm",
-                "b_t"
-            ]);
-
-
-        console.log(
-            "MAG COLUMNS:",
-            {
-                timeColumn,
-                byColumn,
-                bzColumn,
-                btColumn
-            }
-        );
-
-
-        /*
-         * Find the newest row that has
-         * actual magnetic values.
-         */
-
-        let latest = null;
-
-
-        for (
-            let i = data.length - 1;
-            i >= 1;
-            i--
-        ) {
-
-            const row =
-                data[i];
-
-
-            if (
-                !Array.isArray(row)
-            ) {
-                continue;
-            }
-
-
-            const by =
-                byColumn >= 0
-                    ? Number(
-                        row[byColumn]
-                    )
-                    : NaN;
-
-
-            const bz =
-                bzColumn >= 0
-                    ? Number(
-                        row[bzColumn]
-                    )
-                    : NaN;
-
-
-            const bt =
-                btColumn >= 0
-                    ? Number(
-                        row[btColumn]
-                    )
-                    : NaN;
-
-
-            if (
-                Number.isFinite(by) ||
-                Number.isFinite(bz) ||
-                Number.isFinite(bt)
-            ) {
-
-                latest = {
-
-                    by,
-
-                    bz,
-
-                    bt,
-
-                    time:
-                        timeColumn >= 0
-                            ? row[timeColumn]
-                            : null
-                };
-
-
-                break;
-            }
-        }
-
+        const latest = getLatestRecord(data);
 
         if (!latest) {
-
             throw new Error(
-                "No valid magnetic row found"
+                "No solar wind data returned by NOAA"
             );
         }
 
 
-        console.log(
-            "LATEST MAG:",
-            latest
-        );
-
-
-        /* =================================================
-           BY
-        ================================================= */
-
-        if (
-            Number.isFinite(
-                latest.by
-            )
-        ) {
-
-            setText(
-                "by",
-                latest.by.toFixed(1)
-            );
-
-        } else {
-
-            setText(
-                "by",
-                "--"
-            );
-        }
-
-
-        /* =================================================
-           BZ
-        ================================================= */
-
-        if (
-            Number.isFinite(
-                latest.bz
-            )
-        ) {
-
-            setText(
-                "bz",
-                latest.bz.toFixed(1)
-            );
-
-        } else {
-
-            setText(
-                "bz",
-                "--"
-            );
-        }
-
-
-        /* =================================================
-           BT
-        ================================================= */
-
-        if (
-            Number.isFinite(
-                latest.bt
-            )
-        ) {
-
-            setText(
-                "bt",
-                latest.bt.toFixed(1)
-            );
-
-        } else {
-
-            setText(
-                "bt",
-                "--"
-            );
-        }
-
-
-        /* =================================================
-           CLOCK ANGLE
-        ================================================= */
-
-        if (
-            Number.isFinite(latest.by) &&
-            Number.isFinite(latest.bz)
-        ) {
-
-            let angle =
-                Math.atan2(
-                    latest.by,
-                    latest.bz
-                ) *
-                180 /
-                Math.PI;
-
-
-            if (angle < 0) {
-                angle += 360;
-            }
-
-
-            setText(
-                "angle",
-                angle.toFixed(1)
-            );
-
-
-            const needle =
-                document.getElementById(
-                    "needle"
-                );
-
-
-            if (needle) {
-
-                needle.style.transform =
-                    "translate(-50%, -100%) " +
-                    "rotate(" +
-                    angle +
-                    "deg)";
-            }
-
-        } else {
-
-            setText(
-                "angle",
-                "--"
-            );
-        }
-
-
-        /* =================================================
-           TIME
-        ================================================= */
-
-        if (
-            latest.time
-        ) {
-
-            const date =
-                new Date(
-                    latest.time
-                );
-
-
-            if (
-                !Number.isNaN(
-                    date.getTime()
-                )
-            ) {
-
-                setText(
-                    "magTime",
-                    date.toUTCString()
-                );
-            }
-        }
-
-
-        setStatus(
-            "✓ NOAA live data connected"
-        );
-
-
-    } catch (error) {
-
-        console.error(
-            "MAGNETIC ERROR:",
-            error
-        );
-
-
-        setStatus(
-            "NOAA magnetic data error: " +
-            error.message,
-            true
-        );
-    }
-}
-
-
-/* =====================================================
-   SOLAR WIND
-===================================================== */
-
-async function loadSpeed() {
-
-    try {
-
-        const data =
-            await getJSON(
-                SPEED_URL
-            );
-
-
-        console.log(
-            "NOAA SOLAR WIND:",
-            data
-        );
-
-
-        const record =
-            Array.isArray(data)
-                ? data[0]
-                : data;
-
-
-        if (!record) {
-            return;
-        }
-
-
-        const speed =
-            Number(
-                record.proton_speed
-            );
-
-
-        if (
-            Number.isFinite(speed)
-        ) {
-
-            /*
-             * Your current HTML does not have
-             * a speed element.
-             *
-             * This still logs the value.
-             */
-
-            console.log(
-                "SOLAR WIND:",
-                speed,
-                "km/s"
-            );
-
-
-            /*
-             * If you later add:
-             *
-             * <span id="speed"></span>
-             *
-             * it will automatically appear.
-             */
-
-            setText(
+        // ----------------------------------------------------
+        // SPEED
+        // ----------------------------------------------------
+
+        const speed = findValue(
+            latest,
+            [
                 "speed",
-                speed.toFixed(0)
-            );
-        }
-
-
-    } catch (error) {
-
-        console.error(
-            "SOLAR WIND ERROR:",
-            error
-        );
-    }
-}
-
-
-/* =====================================================
-   KP
-===================================================== */
-
-async function loadKp() {
-
-    try {
-
-        const data =
-            await getJSON(
-                KP_URL
-            );
-
-
-        console.log(
-            "NOAA KP:",
-            data
+                "Speed",
+                "proton_speed",
+                "wind_speed"
+            ]
         );
 
 
-        if (
-            !Array.isArray(data) ||
-            data.length < 2
-        ) {
+        // ----------------------------------------------------
+        // DENSITY
+        // ----------------------------------------------------
 
-            throw new Error(
-                "Kp data empty"
-            );
-        }
-
-
-        const header =
-            data[0];
-
-
-        let kpColumn = -1;
-
-        let timeColumn = -1;
-
-
-        for (
-            let i = 0;
-            i < header.length;
-            i++
-        ) {
-
-            const name =
-                String(header[i])
-                    .toLowerCase()
-                    .trim();
-
-
-            if (
-                name === "kp_index" ||
-                name === "kp"
-            ) {
-
-                kpColumn = i;
-            }
-
-
-            if (
-                name === "time_tag"
-            ) {
-
-                timeColumn = i;
-            }
-        }
-
-
-        /*
-         * Fallback.
-         */
-
-        if (
-            kpColumn === -1
-        ) {
-
-            kpColumn =
-                header.findIndex(
-                    h =>
-                        String(h)
-                            .toLowerCase()
-                            .includes("kp")
-                );
-        }
-
-
-        if (
-            kpColumn === -1
-        ) {
-
-            throw new Error(
-                "Kp column not found"
-            );
-        }
-
-
-        const records = [];
-
-
-        for (
-            let i = 1;
-            i < data.length;
-            i++
-        ) {
-
-            const row =
-                data[i];
-
-
-            if (
-                !Array.isArray(row)
-            ) {
-                continue;
-            }
-
-
-            const kp =
-                Number(
-                    row[kpColumn]
-                );
-
-
-            if (
-                Number.isFinite(kp)
-            ) {
-
-                records.push({
-
-                    kp,
-
-                    time:
-                        timeColumn >= 0
-                            ? row[timeColumn]
-                            : null
-                });
-            }
-        }
-
-
-        if (
-            records.length === 0
-        ) {
-
-            throw new Error(
-                "No Kp measurements"
-            );
-        }
-
-
-        const latest =
-            records[
-                records.length - 1
-            ];
-
-
-        setText(
-            "kp",
-            latest.kp.toFixed(1)
+        const density = findValue(
+            latest,
+            [
+                "density",
+                "Density",
+                "proton_density"
+            ]
         );
 
 
-        if (
-            latest.time
-        ) {
+        // ----------------------------------------------------
+        // TEMPERATURE
+        // ----------------------------------------------------
 
-            const date =
-                new Date(
-                    latest.time
-                );
+        const temperature = findValue(
+            latest,
+            [
+                "temperature",
+                "Temperature",
+                "proton_temperature"
+            ]
+        );
 
 
-            if (
-                !Number.isNaN(
-                    date.getTime()
+        // ----------------------------------------------------
+        // UPDATE HTML
+        // ----------------------------------------------------
+
+        if (speed !== null) {
+
+            const formattedSpeed = number(speed, 0);
+
+            setText(
+                "solarSpeed",
+                formattedSpeed
+            );
+
+            setText(
+                "speed2",
+                formattedSpeed
+            );
+        }
+
+
+        if (density !== null) {
+
+            setText(
+                "density",
+                number(density, 2)
+            );
+        }
+
+
+        if (temperature !== null) {
+
+            setText(
+                "temperature",
+                Number(temperature).toLocaleString(
+                    undefined,
+                    {
+                        maximumFractionDigits: 0
+                    }
                 )
-            ) {
-
-                setText(
-                    "kpTime",
-                    date.toUTCString()
-                );
-            }
+            );
         }
 
 
-        const recent =
-            records.slice(-40);
+        // ----------------------------------------------------
+        // TIMESTAMP
+        // ----------------------------------------------------
 
-
-        const labels =
-            recent.map(
-                item => {
-
-                    if (!item.time) {
-                        return "";
-                    }
-
-
-                    const date =
-                        new Date(
-                            item.time
-                        );
-
-
-                    if (
-                        Number.isNaN(
-                            date.getTime()
-                        )
-                    ) {
-
-                        return "";
-                    }
-
-
-                    return date.toLocaleTimeString(
-                        "en-GB",
-                        {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            timeZone: "UTC"
-                        }
-                    );
-                }
-            );
-
-
-        const values =
-            recent.map(
-                item => item.kp
-            );
-
-
-        createChart(
-            labels,
-            values
+        setText(
+            "windTime",
+            formatTime(latest)
         );
 
+
+        return true;
 
     } catch (error) {
 
         console.error(
-            "KP ERROR:",
+            "Solar wind data error:",
             error
         );
 
-
         setText(
-            "kp",
+            "solarSpeed",
             "--"
         );
+
+        setText(
+            "speed2",
+            "--"
+        );
+
+        setText(
+            "density",
+            "--"
+        );
+
+        setText(
+            "temperature",
+            "--"
+        );
+
+        setText(
+            "windTime",
+            "Solar wind data unavailable"
+        );
+
+        return false;
     }
 }
 
 
-/* =====================================================
-   CHART
-===================================================== */
+// ------------------------------------------------------------
+// MAGNETIC FIELD
+// ------------------------------------------------------------
 
-function createChart(
-    labels,
-    values
-) {
+async function loadMagneticData() {
 
-    const canvas =
-        document.getElementById(
-            "kpChart"
+    try {
+
+        const response = await fetch(
+            MAG_URL + "?t=" + Date.now(),
+            {
+                cache: "no-store"
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error(
+                `Magnetic field HTTP ${response.status}`
+            );
+        }
+
+        const data = await response.json();
+
+        const latest = getLatestRecord(data);
+
+        if (!latest) {
+            throw new Error(
+                "No magnetic field data returned by NOAA"
+            );
+        }
+
+
+        // ----------------------------------------------------
+        // BY
+        // ----------------------------------------------------
+
+        const by = findValue(
+            latest,
+            [
+                "by_gsm",
+                "by",
+                "By",
+                "By_gsm"
+            ]
         );
 
 
-    if (
-        !canvas ||
-        typeof Chart === "undefined"
-    ) {
+        // ----------------------------------------------------
+        // BZ
+        // ----------------------------------------------------
 
+        const bz = findValue(
+            latest,
+            [
+                "bz_gsm",
+                "bz",
+                "Bz",
+                "Bz_gsm"
+            ]
+        );
+
+
+        // ----------------------------------------------------
+        // BT
+        // ----------------------------------------------------
+
+        const bt = findValue(
+            latest,
+            [
+                "bt",
+                "Bt",
+                "total_field"
+            ]
+        );
+
+
+        // ----------------------------------------------------
+        // UPDATE BY
+        // ----------------------------------------------------
+
+        if (by !== null) {
+
+            setText(
+                "by",
+                number(by, 1)
+            );
+        }
+
+
+        // ----------------------------------------------------
+        // UPDATE BZ
+        // ----------------------------------------------------
+
+        if (bz !== null) {
+
+            setText(
+                "bz",
+                number(bz, 1)
+            );
+        }
+
+
+        // ----------------------------------------------------
+        // UPDATE BT
+        // ----------------------------------------------------
+
+        if (bt !== null) {
+
+            const formattedBt = number(bt, 1);
+
+            setText(
+                "bt",
+                formattedBt
+            );
+
+            setText(
+                "bt2",
+                formattedBt
+            );
+        }
+
+
+        // ----------------------------------------------------
+        // CLOCK ANGLE
+        //
+        // atan2(By, Bz)
+        // ----------------------------------------------------
+
+        if (by !== null && bz !== null) {
+
+            const byNumber = Number(by);
+            const bzNumber = Number(bz);
+
+            if (
+                Number.isFinite(byNumber) &&
+                Number.isFinite(bzNumber)
+            ) {
+
+                let angle =
+                    Math.atan2(
+                        byNumber,
+                        bzNumber
+                    ) *
+                    180 /
+                    Math.PI;
+
+                if (angle < 0) {
+                    angle += 360;
+                }
+
+                setText(
+                    "clockAngle",
+                    angle.toFixed(1)
+                );
+            }
+        }
+
+
+        // ----------------------------------------------------
+        // TIMESTAMP
+        // ----------------------------------------------------
+
+        setText(
+            "magTime",
+            formatTime(latest)
+        );
+
+
+        return true;
+
+    } catch (error) {
+
+        console.error(
+            "Magnetic field data error:",
+            error
+        );
+
+        setText("by", "--");
+        setText("bz", "--");
+        setText("bt", "--");
+        setText("bt2", "--");
+        setText("clockAngle", "--");
+
+        setText(
+            "magTime",
+            "Magnetic field data unavailable"
+        );
+
+        return false;
+    }
+}
+
+
+// ------------------------------------------------------------
+// KP INDEX
+// ------------------------------------------------------------
+
+async function loadKpData() {
+
+    try {
+
+        const response = await fetch(
+            KP_URL + "?t=" + Date.now(),
+            {
+                cache: "no-store"
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error(
+                `Kp HTTP ${response.status}`
+            );
+        }
+
+        const data = await response.json();
+
+        const latest = getLatestRecord(data);
+
+        if (!latest) {
+            throw new Error(
+                "No Kp data returned by NOAA"
+            );
+        }
+
+
+        const kp = findValue(
+            latest,
+            [
+                "kp_index",
+                "kp",
+                "Kp"
+            ]
+        );
+
+
+        if (kp !== null) {
+
+            setText(
+                "currentKp",
+                number(kp, 1)
+            );
+        }
+
+
+        return true;
+
+    } catch (error) {
+
+        console.error(
+            "Kp data error:",
+            error
+        );
+
+        setText(
+            "currentKp",
+            "--"
+        );
+
+        return false;
+    }
+}
+
+
+// ------------------------------------------------------------
+// UPDATE STATUS
+// ------------------------------------------------------------
+
+async function updateDashboard() {
+
+    const results = await Promise.all([
+        loadSolarWindData(),
+        loadMagneticData(),
+        loadKpData()
+    ]);
+
+    const solarWindOK = results[0];
+    const magneticOK = results[1];
+    const kpOK = results[2];
+
+
+    const status = document.getElementById("status");
+
+    if (!status) {
         return;
     }
 
 
-    if (chart) {
-        chart.destroy();
+    if (
+        solarWindOK &&
+        magneticOK &&
+        kpOK
+    ) {
+
+        status.textContent =
+            "LIVE — NOAA SWPC data connected";
+
+        status.className = "ok";
+
+    } else {
+
+        status.textContent =
+            "PARTIAL DATA — some NOAA feeds unavailable";
+
+        status.className = "error";
     }
-
-
-    chart =
-        new Chart(
-            canvas,
-            {
-
-                type: "line",
-
-                data: {
-
-                    labels,
-
-                    datasets: [
-
-                        {
-
-                            label: "Kp",
-
-                            data: values,
-
-                            borderColor:
-                                "#4bbcff",
-
-                            backgroundColor:
-                                "rgba(75,188,255,0.12)",
-
-                            borderWidth: 2,
-
-                            pointRadius: 3,
-
-                            tension: 0.25,
-
-                            fill: true
-                        }
-                    ]
-                },
-
-                options: {
-
-                    responsive: true,
-
-                    maintainAspectRatio:
-                        false,
-
-                    animation: false,
-
-                    scales: {
-
-                        y: {
-
-                            min: 0,
-
-                            max: 9,
-
-                            ticks: {
-
-                                color:
-                                    "#71839c",
-
-                                stepSize: 1
-                            },
-
-                            grid: {
-
-                                color:
-                                    "rgba(120,150,190,.1)"
-                            }
-                        },
-
-                        x: {
-
-                            ticks: {
-
-                                color:
-                                    "#71839c"
-                            },
-
-                            grid: {
-
-                                color:
-                                    "rgba(120,150,190,.05)"
-                            }
-                        }
-                    },
-
-                    plugins: {
-
-                        legend: {
-
-                            labels: {
-
-                                color:
-                                    "#9aabc2"
-                            }
-                        }
-                    }
-                }
-            }
-        );
 }
 
 
-/* =====================================================
-   UPDATE EVERYTHING
-===================================================== */
+// ------------------------------------------------------------
+// INITIAL LOAD
+// ------------------------------------------------------------
 
-function updateAll() {
-
-    loadMagnetic();
-
-    loadSpeed();
-
-    loadKp();
-}
+updateDashboard();
 
 
-/* =====================================================
-   START
-===================================================== */
-
-updateAll();
-
-
-/* =====================================================
-   REFRESH EVERY 60 SECONDS
-===================================================== */
+// ------------------------------------------------------------
+// REFRESH EVERY 60 SECONDS
+// ------------------------------------------------------------
 
 setInterval(
-    updateAll,
-    60000
+    updateDashboard,
+    60 * 1000
 );
