@@ -1,304 +1,251 @@
-<!DOCTYPE html> <html lang="en"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Space Weather Monitor</title>
+<!DOCTYPE html>
 
-<link rel="stylesheet" href="style.css">
-</head> <body> <header class="header">
-<div>
-    <h1>SPACE WEATHER MONITOR</h1>
-    <p>Real-time solar wind, IMF and Kp index</p>
-</div>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<div class="connection">
-    <span id="statusDot" class="status-dot"></span>
-    <span id="status">Connecting...</span>
-</div>
-</header> <main>
+  <meta name="description" content="Real-time space weather monitor using NOAA SWPC data">
+  <meta name="theme-color" content="#050816">
+
+  <title>Space Weather Monitor</title>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div class="app">
+
+```
+<header class="site-header">
+  <div>
+    <p class="eyebrow">SPACE WEATHER</p>
+    <h1>Space Weather Monitor</h1>
+    <p class="subtitle">
+      Real-time solar wind, interplanetary magnetic field and geomagnetic activity
+    </p>
+  </div>
+
+  <div class="status-panel">
+    <span id="status-dot" class="status-dot offline"></span>
+    <span id="connection-status">Connecting...</span>
+  </div>
+</header>
+
 <div class="update-bar">
+  <div>
+    <span class="label">Last update</span>
+    <strong id="last-update">--</strong>
+  </div>
 
-    <div>
-        <span class="label">LAST UPDATE</span>
-        <span id="lastUpdate">--</span>
-    </div>
-
-    <div>
-        <span class="label">DATA TIME</span>
-        <span id="dataTime">--</span>
-    </div>
-
+  <div>
+    <span class="label">Data source</span>
+    <strong>NOAA SWPC</strong>
+  </div>
 </div>
 
+<main>
 
-<!-- =====================================================
-     SOLAR WIND
-====================================================== -->
-
-<section>
-
-    <div class="section-title solar-title">
-        <span></span>
-        <h2>Solar Wind</h2>
+  <!-- SOLAR WIND -->
+  <section class="section">
+    <div class="section-heading">
+      <h2>Solar Wind</h2>
+      <span class="section-description">Near-Earth solar-wind conditions</span>
     </div>
 
-    <div class="cards three">
+    <div class="cards cards-3">
 
-        <div class="card solar-card">
-
-            <div class="card-title">
-                SOLAR WIND SPEED
-            </div>
-
-            <div class="main-value">
-                <span id="speed">--</span>
-                <small>km/s</small>
-            </div>
-
-            <div class="card-description">
-                Proton bulk speed
-            </div>
-
+      <article class="metric-card">
+        <div class="metric-title">Speed</div>
+        <div class="metric-value">
+          <span id="solar-wind-speed">--</span>
+          <span class="metric-unit">km/s</span>
         </div>
+        <div class="metric-status" id="speed-status">Waiting for data</div>
+      </article>
 
-
-        <div class="card solar-card">
-
-            <div class="card-title">
-                TEMPERATURE
-            </div>
-
-            <div class="main-value">
-                <span id="temperature">--</span>
-                <small>K</small>
-            </div>
-
-            <div class="card-description">
-                Proton temperature
-            </div>
-
+      <article class="metric-card">
+        <div class="metric-title">Density</div>
+        <div class="metric-value">
+          <span id="density">--</span>
+          <span class="metric-unit">particles/cm³</span>
         </div>
+        <div class="metric-status" id="density-status">Waiting for data</div>
+      </article>
 
-
-        <div class="card solar-card">
-
-            <div class="card-title">
-                DENSITY
-            </div>
-
-            <div class="main-value">
-                <span id="density">--</span>
-                <small>cm⁻³</small>
-            </div>
-
-            <div class="card-description">
-                Proton density
-            </div>
-
+      <article class="metric-card">
+        <div class="metric-title">Temperature</div>
+        <div class="metric-value">
+          <span id="temperature">--</span>
+          <span class="metric-unit">K</span>
         </div>
+        <div class="metric-status" id="temperature-status">Waiting for data</div>
+      </article>
 
     </div>
+  </section>
 
-</section>
-
-
-<!-- =====================================================
-     IMF
-====================================================== -->
-
-<section>
-
-    <div class="section-title imf-title">
-        <span></span>
-        <h2>Interplanetary Magnetic Field</h2>
+  <!-- IMF -->
+  <section class="section">
+    <div class="section-heading">
+      <h2>Interplanetary Magnetic Field</h2>
+      <span class="section-description">IMF measurements near Earth</span>
     </div>
 
-    <div class="cards five">
+    <div class="cards cards-5">
 
-        <div class="card">
-
-            <div class="card-title">
-                Bx
-            </div>
-
-            <div class="value">
-                <span id="bx">--</span>
-                <small>nT</small>
-            </div>
-
+      <article class="metric-card">
+        <div class="metric-title">Bx</div>
+        <div class="metric-value">
+          <span id="bx">--</span>
+          <span class="metric-unit">nT</span>
         </div>
+      </article>
 
-
-        <div class="card">
-
-            <div class="card-title">
-                By
-            </div>
-
-            <div class="value">
-                <span id="by">--</span>
-                <small>nT</small>
-            </div>
-
+      <article class="metric-card">
+        <div class="metric-title">By</div>
+        <div class="metric-value">
+          <span id="by">--</span>
+          <span class="metric-unit">nT</span>
         </div>
+      </article>
 
-
-        <div class="card bz-card">
-
-            <div class="card-title">
-                Bz
-            </div>
-
-            <div class="value">
-                <span id="bz">--</span>
-                <small>nT</small>
-            </div>
-
-            <div id="bzState" class="bz-state">
-                --
-            </div>
-
+      <article class="metric-card">
+        <div class="metric-title">Bz</div>
+        <div class="metric-value">
+          <span id="bz">--</span>
+          <span class="metric-unit">nT</span>
         </div>
+      </article>
 
-
-        <div class="card">
-
-            <div class="card-title">
-                Bt
-            </div>
-
-            <div class="value">
-                <span id="bt">--</span>
-                <small>nT</small>
-            </div>
-
+      <article class="metric-card">
+        <div class="metric-title">Bt</div>
+        <div class="metric-value">
+          <span id="bt">--</span>
+          <span class="metric-unit">nT</span>
         </div>
+      </article>
 
-
-        <div class="card">
-
-            <div class="card-title">
-                CLOCK ANGLE
-            </div>
-
-            <div class="value">
-                <span id="clockAngle">--</span>
-                <small>°</small>
-            </div>
-
+      <article class="metric-card">
+        <div class="metric-title">Clock Angle</div>
+        <div class="metric-value">
+          <span id="clock-angle">--</span>
+          <span class="metric-unit">°</span>
         </div>
+      </article>
 
     </div>
+  </section>
 
-</section>
-
-
-<!-- =====================================================
-     Kp
-====================================================== -->
-
-<section>
-
-    <div class="section-title kp-title">
-        <span></span>
-        <h2>Geomagnetic Activity</h2>
+  <!-- GEOMAGNETIC ACTIVITY -->
+  <section class="section">
+    <div class="section-heading">
+      <h2>Geomagnetic Activity</h2>
+      <span class="section-description">Planetary Kp index</span>
     </div>
 
-    <div class="kp-layout">
+    <div class="geomagnetic-grid">
 
-        <div class="card kp-card">
+      <article class="kp-card">
+        <div class="metric-title">Planetary Kp</div>
 
-            <div class="card-title">
-                PLANETARY Kp INDEX
-            </div>
-
-            <div class="kp-value">
-                <span id="kp">--</span>
-            </div>
-
-            <div id="kpLevel" class="kp-level">
-                --
-            </div>
-
-            <div class="kp-scale">
-
-                <div class="scale-item">
-                    <span class="scale-color quiet"></span>
-                    <span>0–2</span>
-                </div>
-
-                <div class="scale-item">
-                    <span class="scale-color unsettled"></span>
-                    <span>3</span>
-                </div>
-
-                <div class="scale-item">
-                    <span class="scale-color active"></span>
-                    <span>4</span>
-                </div>
-
-                <div class="scale-item">
-                    <span class="scale-color storm"></span>
-                    <span>5–6</span>
-                </div>
-
-                <div class="scale-item">
-                    <span class="scale-color severe"></span>
-                    <span>7+</span>
-                </div>
-
-            </div>
-
+        <div class="kp-value">
+          <span id="kp-index">--</span>
         </div>
 
-
-        <div class="card information-card">
-
-            <div class="card-title">
-                CURRENT CONDITIONS
-            </div>
-
-            <div class="condition-row">
-                <span>Solar wind</span>
-                <strong id="conditionSpeed">--</strong>
-            </div>
-
-            <div class="condition-row">
-                <span>IMF Bz</span>
-                <strong id="conditionBz">--</strong>
-            </div>
-
-            <div class="condition-row">
-                <span>IMF Bt</span>
-                <strong id="conditionBt">--</strong>
-            </div>
-
-            <div class="condition-row">
-                <span>Kp</span>
-                <strong id="conditionKp">--</strong>
-            </div>
-
+        <div id="kp-description" class="kp-description">
+          Waiting for data
         </div>
+      </article>
+
+      <article class="scale-card">
+        <div class="metric-title">Kp Scale</div>
+
+        <div class="kp-scale">
+          <div class="scale-item">
+            <span>0–2</span>
+            <small>Quiet</small>
+          </div>
+
+          <div class="scale-item">
+            <span>3</span>
+            <small>Unsettled</small>
+          </div>
+
+          <div class="scale-item">
+            <span>4</span>
+            <small>Active</small>
+          </div>
+
+          <div class="scale-item">
+            <span>5</span>
+            <small>Storm</small>
+          </div>
+
+          <div class="scale-item">
+            <span>6–9</span>
+            <small>Major storm</small>
+          </div>
+        </div>
+      </article>
 
     </div>
+  </section>
 
-</section>
-
-
-<!-- =====================================================
-     FOOTER
-====================================================== -->
-
-<footer>
-
-    <div>
-        Data source: NOAA Space Weather Prediction Center
+  <!-- CURRENT CONDITIONS -->
+  <section class="section">
+    <div class="section-heading">
+      <h2>Current Conditions</h2>
+      <span class="section-description">Summary of current measurements</span>
     </div>
 
-    <div>
-        Solar wind / IMF / Kp · 1-minute data
-    </div>
+    <div class="conditions">
 
-    <div>
-        All times UTC
-    </div>
+      <div class="condition-row">
+        <span>Solar Wind</span>
+        <strong id="summary-speed">-- km/s</strong>
+      </div>
 
+      <div class="condition-row">
+        <span>IMF Bz</span>
+        <strong id="summary-bz">-- nT</strong>
+      </div>
+
+      <div class="condition-row">
+        <span>IMF Bt</span>
+        <strong id="summary-bt">-- nT</strong>
+      </div>
+
+      <div class="condition-row">
+        <span>Kp Index</span>
+        <strong id="summary-kp">--</strong>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ERROR -->
+  <div id="error-message" class="error-message hidden" role="alert"></div>
+
+</main>
+
+<footer class="site-footer">
+  <p>
+    Space Weather Monitor
+  </p>
+
+  <p>
+    Data provided by
+    <a href="https://www.swpc.noaa.gov/" target="_blank" rel="noopener noreferrer">
+      NOAA Space Weather Prediction Center
+    </a>
+  </p>
 </footer>
-</main> <script src="script.js"></script> </body> </html>
+```
+
+  </div>
+
+  <script src="script.js"></script>
+
+</body>
+</html>
