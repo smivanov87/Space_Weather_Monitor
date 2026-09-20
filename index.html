@@ -1,323 +1,787 @@
 <!DOCTYPE html>
-<html lang="en"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Space Weather Monitor</title>
-<link rel="stylesheet" href="style.css?v=5">
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="description"
+        content="Real-time solar wind and geomagnetic conditions from NOAA."
+    >
+
+    <title>Space Weather Monitor</title>
+
+    <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-<header class="site-header"> 
-    <div class="header-content"> 
-    
-    <div class="author-info"> 
-        <strong>Serhii M. Ivanov</strong> 
-        <span>PhD in Physical and Mathematical Sciences</span> 
-        <span> ORCID:
-            <a href="https://orcid.org/0000-0002-4339-9192" target="_blank" rel="noopener noreferrer"> 0000-0002-4339-9192 </a> </span> 
-        <span> <a href="https://github.com/smivanov87" target="_blank" rel="noopener noreferrer"> GitHub </a> 
-        </span> 
+
+<header class="site-header">
+
+    <div class="header-content">
+
+        <!-- AUTHOR INFORMATION -->
+
+        <div class="author-info">
+
+            <strong>Serhii M. Ivanov</strong>
+
+            <span>
+                PhD in Physical and Mathematical Sciences
+            </span>
+
+            <span>
+                ORCID:
+                <a
+                    href="https://orcid.org/0000-0002-4339-9192"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    0000-0002-4339-9192
+                </a>
+            </span>
+
+            <span>
+                <a
+                    href="https://github.com/smivanov87"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    GitHub
+                </a>
+            </span>
+
+        </div>
+
+
+        <!-- TITLE -->
+
+        <h1>
+            SPACE WEATHER MONITOR
+        </h1>
+
+        <p class="subtitle">
+            Real-time solar wind &amp; geomagnetic conditions
+        </p>
+
+
+        <!-- CONNECTION STATUS -->
+
+        <div class="connection">
+
+            <span
+                id="status-dot"
+                class="status-dot"
+            ></span>
+
+            <span id="connection-status">
+                Connecting...
+            </span>
+
+            <span class="separator">
+                •
+            </span>
+
+            <span id="last-update">
+                Last update: --
+            </span>
+
+        </div>
+
     </div>
-    
-    <h1>SPACE WEATHER MONITOR</h1> <p class="subtitle">Real-time solar wind &amp; geomagnetic conditions</p>
-    <div class="connection">
-        <span id="status-dot" class="status-dot offline"></span>
-        <span id="connection-status">Connecting...</span>
-        <span class="separator">•</span>
-        <span id="last-update">Waiting for data...</span>
-    </div>
-</div>
+
 </header>
+
+
 <main class="container">
-<!-- SOLAR WIND -->
-<section class="panel">
 
-    <div class="section-title">
-        <span class="section-icon">☀</span>
 
-        <div>
-            <h2>Solar Wind</h2>
-            <p>Real-time solar wind parameters</p>
-        </div>
-    </div>
+    <!-- =========================
+         SOLAR WIND
+    ========================== -->
 
-    <div class="metrics">
+    <section class="panel">
 
-        <div class="metric-card">
-            <div class="metric-label">Speed</div>
+        <div class="section-title">
 
-            <div class="metric-value">
-                <span id="solar-wind-speed">--</span>
-                <span class="metric-unit">km/s</span>
+            <div class="section-icon">
+                ☀️
             </div>
 
-            <div id="speed-status" class="metric-status">--</div>
-            <div id="speed-time" class="metric-time">--</div>
-        </div>
+            <div>
 
+                <h2>
+                    Solar Wind
+                </h2>
 
-        <div class="metric-card">
-            <div class="metric-label">Density</div>
+                <p>
+                    Near-Earth solar wind plasma
+                </p>
 
-            <div class="metric-value">
-                <span id="density">--</span>
-                <span class="metric-unit">p/cm³</span>
             </div>
 
-            <div id="density-status" class="metric-status">--</div>
-            <div id="density-time" class="metric-time">--</div>
         </div>
 
 
-        <div class="metric-card">
-            <div class="metric-label">Temperature</div>
+        <div class="metrics">
 
-            <div class="metric-value">
-                <span id="temperature">--</span>
-                <span class="metric-unit">K</span>
+
+            <!-- SPEED -->
+
+            <div class="metric-card">
+
+                <div class="metric-label">
+                    Speed
+                </div>
+
+                <div class="metric-value">
+
+                    <span id="solar-wind-speed">
+                        --
+                    </span>
+
+                    <span class="metric-unit">
+                        km/s
+                    </span>
+
+                </div>
+
+                <div
+                    class="metric-status"
+                    id="speed-status"
+                >
+                    --
+                </div>
+
+                <div
+                    class="metric-time"
+                    id="speed-time"
+                >
+                    Measurement: --
+                </div>
+
             </div>
 
-            <div id="temperature-status" class="metric-status">--</div>
-            <div id="temperature-time" class="metric-time">--</div>
-        </div>
 
-    </div>
-</section>
+            <!-- DENSITY -->
 
+            <div class="metric-card">
 
-<!-- INTERPLANETARY MAGNETIC FIELD -->
-<section class="panel">
+                <div class="metric-label">
+                    Proton Density
+                </div>
 
-    <div class="section-title">
-        <span class="section-icon">◈</span>
+                <div class="metric-value">
 
-        <div>
-            <h2>Interplanetary Magnetic Field</h2>
-            <p>GSM magnetic field components</p>
-        </div>
-    </div>
+                    <span id="density">
+                        --
+                    </span>
 
-    <div class="metrics">
+                    <span class="metric-unit">
+                        cm⁻³
+                    </span>
 
-        <div class="metric-card">
-            <div class="metric-label">Bx</div>
+                </div>
 
-            <div class="metric-value">
-                <span id="bx">--</span>
-                <span class="metric-unit">nT</span>
+                <div
+                    class="metric-status"
+                    id="density-status"
+                >
+                    --
+                </div>
+
+                <div
+                    class="metric-time"
+                    id="density-time"
+                >
+                    Measurement: --
+                </div>
+
             </div>
 
-            <div id="bx-time" class="metric-time">--</div>
-        </div>
 
+            <!-- TEMPERATURE -->
 
-        <div class="metric-card">
-            <div class="metric-label">By</div>
+            <div class="metric-card">
 
-            <div class="metric-value">
-                <span id="by">--</span>
-                <span class="metric-unit">nT</span>
+                <div class="metric-label">
+                    Proton Temperature
+                </div>
+
+                <div class="metric-value">
+
+                    <span id="temperature">
+                        --
+                    </span>
+
+                    <span class="metric-unit">
+                        K
+                    </span>
+
+                </div>
+
+                <div
+                    class="metric-status"
+                    id="temperature-status"
+                >
+                    --
+                </div>
+
+                <div
+                    class="metric-time"
+                    id="temperature-time"
+                >
+                    Measurement: --
+                </div>
+
             </div>
 
-            <div id="by-time" class="metric-time">--</div>
         </div>
 
+    </section>
 
-        <div class="metric-card">
-            <div class="metric-label">Bz</div>
 
-            <div class="metric-value">
-                <span id="bz">--</span>
-                <span class="metric-unit">nT</span>
+
+    <!-- =========================
+         IMF
+    ========================== -->
+
+    <section class="panel">
+
+        <div class="section-title">
+
+            <div class="section-icon">
+                🧲
             </div>
 
-            <div id="bz-time" class="metric-time">--</div>
-        </div>
+            <div>
 
+                <h2>
+                    Interplanetary Magnetic Field
+                </h2>
 
-        <div class="metric-card">
-            <div class="metric-label">Bt</div>
+                <p>
+                    Magnetic field components in GSM coordinates
+                </p>
 
-            <div class="metric-value">
-                <span id="bt">--</span>
-                <span class="metric-unit">nT</span>
             </div>
 
-            <div id="bt-time" class="metric-time">--</div>
         </div>
 
 
-        <div class="metric-card">
-            <div class="metric-label">Clock Angle</div>
+        <div class="metrics">
 
-            <div class="metric-value">
-                <span id="clock-angle">--</span>
-                <span class="metric-unit">°</span>
+
+            <!-- BX -->
+
+            <div class="metric-card">
+
+                <div class="metric-label">
+                    Bx
+                </div>
+
+                <div class="metric-value">
+
+                    <span id="bx">
+                        --
+                    </span>
+
+                    <span class="metric-unit">
+                        nT
+                    </span>
+
+                </div>
+
+                <div class="metric-status">
+                    GSM
+                </div>
+
+                <div
+                    class="metric-time"
+                    id="bx-time"
+                >
+                    Measurement: --
+                </div>
+
             </div>
 
-            <div id="clock-angle-time" class="metric-time">--</div>
+
+            <!-- BY -->
+
+            <div class="metric-card">
+
+                <div class="metric-label">
+                    By
+                </div>
+
+                <div class="metric-value">
+
+                    <span id="by">
+                        --
+                    </span>
+
+                    <span class="metric-unit">
+                        nT
+                    </span>
+
+                </div>
+
+                <div class="metric-status">
+                    GSM
+                </div>
+
+                <div
+                    class="metric-time"
+                    id="by-time"
+                >
+                    Measurement: --
+                </div>
+
+            </div>
+
+
+            <!-- BZ -->
+
+            <div class="metric-card">
+
+                <div class="metric-label">
+                    Bz
+                </div>
+
+                <div class="metric-value">
+
+                    <span id="bz">
+                        --
+                    </span>
+
+                    <span class="metric-unit">
+                        nT
+                    </span>
+
+                </div>
+
+                <div class="metric-status">
+                    GSM
+                </div>
+
+                <div
+                    class="metric-time"
+                    id="bz-time"
+                >
+                    Measurement: --
+                </div>
+
+            </div>
+
+
+            <!-- BT -->
+
+            <div class="metric-card">
+
+                <div class="metric-label">
+                    Bt
+                </div>
+
+                <div class="metric-value">
+
+                    <span id="bt">
+                        --
+                    </span>
+
+                    <span class="metric-unit">
+                        nT
+                    </span>
+
+                </div>
+
+                <div class="metric-status">
+                    Total field
+                </div>
+
+                <div
+                    class="metric-time"
+                    id="bt-time"
+                >
+                    Measurement: --
+                </div>
+
+            </div>
+
+
+            <!-- CLOCK ANGLE -->
+
+            <div class="metric-card">
+
+                <div class="metric-label">
+                    Clock Angle
+                </div>
+
+                <div class="metric-value">
+
+                    <span id="clock-angle">
+                        --
+                    </span>
+
+                    <span class="metric-unit">
+                        °
+                    </span>
+
+                </div>
+
+                <div class="metric-status">
+                    GSM
+                </div>
+
+                <div
+                    class="metric-time"
+                    id="clock-angle-time"
+                >
+                    Measurement: --
+                </div>
+
+            </div>
+
         </div>
 
-    </div>
-</section>
+    </section>
 
-<!-- GEOMAGNETIC & PLASMA CONDITIONS -->
-<section class="panel">
 
-    <div class="section-title">
-        <span class="section-icon">◉</span>
 
-        <div>
-            <h2>Geomagnetic &amp; Plasma Conditions</h2>
-            <p>Geomagnetic index and solar-wind plasma parameters</p>
+    <!-- =========================
+         GEOMAGNETIC & PLASMA
+    ========================== -->
+
+    <section class="panel">
+
+        <div class="section-title">
+
+            <div class="section-icon">
+                🌍
+            </div>
+
+            <div>
+
+                <h2>
+                    Geomagnetic &amp; Plasma Conditions
+                </h2>
+
+                <p>
+                    Geomagnetic activity and solar-wind plasma parameters
+                </p>
+
+            </div>
+
         </div>
-    </div>
 
-<div class="metrics">
 
-    <div class="metric-card">
-        <div class="metric-label">Dst Index</div>
+        <div class="metrics">
 
-        <div class="metric-value">
-            <span id="dst-value">--</span>
-            <span class="metric-unit">nT</span>
+
+            <!-- DST INDEX -->
+
+            <div class="metric-card">
+
+                <div class="metric-label">
+                    Dst Index
+                </div>
+
+                <div class="metric-value">
+
+                    <span id="dst">
+                        --
+                    </span>
+
+                    <span class="metric-unit">
+                        nT
+                    </span>
+
+                </div>
+
+                <div
+                    class="metric-status"
+                    id="dst-status"
+                >
+                    --
+                </div>
+
+                <div
+                    class="metric-time"
+                    id="dst-time"
+                >
+                    Measurement: --
+                </div>
+
+            </div>
+
+
+            <!-- THERMAL PRESSURE -->
+
+            <div class="metric-card">
+
+                <div class="metric-label">
+                    Thermal Pressure
+                </div>
+
+                <div class="metric-value">
+
+                    <span id="thermal-pressure">
+                        --
+                    </span>
+
+                    <span class="metric-unit">
+                        nPa
+                    </span>
+
+                </div>
+
+                <div
+                    class="metric-status"
+                    id="thermal-pressure-status"
+                >
+                    P<sub>th</sub> = n k<sub>B</sub> T
+                </div>
+
+                <div
+                    class="metric-time"
+                    id="thermal-pressure-time"
+                >
+                    Measurement: --
+                </div>
+
+            </div>
+
+
+            <!-- MAGNETIC PRESSURE -->
+
+            <div class="metric-card">
+
+                <div class="metric-label">
+                    Magnetic Pressure
+                </div>
+
+                <div class="metric-value">
+
+                    <span id="magnetic-pressure">
+                        --
+                    </span>
+
+                    <span class="metric-unit">
+                        nPa
+                    </span>
+
+                </div>
+
+                <div
+                    class="metric-status"
+                    id="magnetic-pressure-status"
+                >
+                    P<sub>B</sub> = B<sup>2</sup> / (2 μ<sub>0</sub>)
+                </div>
+
+                <div
+                    class="metric-time"
+                    id="magnetic-pressure-time"
+                >
+                    Measurement: --
+                </div>
+
+            </div>
+
+
+            <!-- DYNAMIC PRESSURE -->
+
+            <div class="metric-card">
+
+                <div class="metric-label">
+                    Dynamic Pressure
+                </div>
+
+                <div class="metric-value">
+
+                    <span id="dynamic-pressure">
+                        --
+                    </span>
+
+                    <span class="metric-unit">
+                        nPa
+                    </span>
+
+                </div>
+
+                <div
+                    class="metric-status"
+                    id="dynamic-pressure-status"
+                >
+                    P<sub>dyn</sub> = n m<sub>p</sub> v<sup>2</sup>
+                </div>
+
+                <div
+                    class="metric-time"
+                    id="dynamic-pressure-time"
+                >
+                    Measurement: --
+                </div>
+
+            </div>
+
+
+            <!-- PLASMA BETA -->
+
+            <div class="metric-card">
+
+                <div class="metric-label">
+                    Plasma Beta
+                </div>
+
+                <div class="metric-value">
+
+                    <span id="plasma-beta">
+                        --
+                    </span>
+
+                </div>
+
+                <div
+                    class="metric-status"
+                    id="plasma-beta-status"
+                >
+                    β = P<sub>th</sub> / P<sub>B</sub>
+                </div>
+
+                <div
+                    class="metric-time"
+                    id="plasma-beta-time"
+                >
+                    Measurement: --
+                </div>
+
+            </div>
+
         </div>
 
-        <div class="metric-status" id="dst-status">
-            Waiting for data
+    </section>
+
+
+
+    <!-- =========================
+         KP INDEX
+    ========================== -->
+
+    <section class="panel">
+
+        <div class="section-title">
+
+            <div class="section-icon">
+                ⚡
+            </div>
+
+            <div>
+
+                <h2>
+                    Kp Index
+                </h2>
+
+                <p>
+                    Global geomagnetic activity
+                </p>
+
+            </div>
+
         </div>
 
-        <div class="metric-time" id="dst-time">
+
+        <div class="kp-display">
+
+            <div
+                class="kp-value"
+                id="kp-index"
+            >
+                --
+            </div>
+
+            <div class="kp-info">
+
+                <div class="kp-label">
+                    Planetary Kp
+                </div>
+
+                <div
+                    class="kp-description"
+                    id="kp-description"
+                >
+                    --
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="kp-scale">
+
+            <span>0</span>
+            <span>1</span>
+            <span>2</span>
+            <span>3</span>
+            <span>4</span>
+            <span>5</span>
+            <span>6</span>
+            <span>7</span>
+            <span>8</span>
+            <span>9</span>
+
+        </div>
+
+
+        <div
+            class="metric-time"
+            id="kp-time"
+        >
             Measurement: --
         </div>
-    </div>
+
+    </section>
 
 
-    <div class="metric-card">
-        <div class="metric-label">Thermal Pressure</div>
 
-        <div class="metric-value">
-            <span id="thermal-pressure-value">--</span>
-            <span class="metric-unit">nPa</span>
-        </div>
+    <!-- =========================
+         ERROR MESSAGE
+    ========================== -->
 
-        <div class="metric-status">
-            P<sub>th</sub> = n k<sub>B</sub> T
-        </div>
+    <div
+        id="error-message"
+        class="error-message"
+        hidden
+    ></div>
 
-        <div class="metric-time" id="thermal-pressure-time">
-            Measurement: --
-        </div>
-    </div>
-
-
-    <div class="metric-card">
-        <div class="metric-label">Magnetic Pressure</div>
-
-        <div class="metric-value">
-            <span id="magnetic-pressure-value">--</span>
-            <span class="metric-unit">nPa</span>
-        </div>
-
-        <div class="metric-status">
-            P<sub>B</sub> = B<sup>2</sup> / (2 μ<sub>0</sub>)
-        </div>
-
-        <div class="metric-time" id="magnetic-pressure-time">
-            Measurement: --
-        </div>
-    </div>
-
-
-    <div class="metric-card">
-        <div class="metric-label">Dynamic Pressure</div>
-
-        <div class="metric-value">
-            <span id="dynamic-pressure-value">--</span>
-            <span class="metric-unit">nPa</span>
-        </div>
-
-        <div class="metric-status">
-            P<sub>dyn</sub> = n m<sub>p</sub> v<sup>2</sup>
-        </div>
-
-        <div class="metric-time" id="dynamic-pressure-time">
-            Measurement: --
-        </div>
-    </div>
-
-
-    <div class="metric-card">
-        <div class="metric-label">Plasma Beta</div>
-
-        <div class="metric-value">
-            <span id="plasma-beta-value">--</span>
-        </div>
-
-        <div class="metric-status">
-            β = P<sub>th</sub> / P<sub>B</sub>
-        </div>
-
-        <div class="metric-time" id="plasma-beta-time">
-            Measurement: --
-        </div>
-    </div>
-
-</div>
-    
-</section>
-    
-<!-- GEOMAGNETIC ACTIVITY -->
-<section class="panel kp-panel">
-
-    <div class="section-title">
-        <span class="section-icon">🌍</span>
-
-        <div>
-            <h2>Geomagnetic Activity</h2>
-            <p>Planetary geomagnetic activity index</p>
-        </div>
-    </div>
-
-
-    <div class="kp-display">
-
-        <div class="kp-value">
-            <span id="kp-index">--</span>
-        </div>
-
-        <div class="kp-info">
-            <div class="kp-label">Planetary Kp</div>
-
-            <div id="kp-description" class="kp-description">
-                Waiting for data...
-            </div>
-
-            <div id="kp-time" class="metric-time">--</div>
-        </div>
-
-    </div>
-
-
-    <div class="kp-scale">
-        <span>0</span>
-        <span>1</span>
-        <span>2</span>
-        <span>3</span>
-        <span>4</span>
-        <span>5</span>
-        <span>6</span>
-        <span>7</span>
-        <span>8</span>
-        <span>9</span>
-    </div>
-
-</section>
-
-
-<div id="error-message" class="error-message" hidden></div>
 </main>
-<footer> <p>Data provided by NOAA Space Weather Prediction Center</p>
-<p class="footer-note">
-    Measurements are updated automatically.
-</p>
+
+
+
+<!-- =========================
+     FOOTER
+========================== -->
+
+<footer>
+
+    <p>
+        Space Weather Monitor
+    </p>
+
+    <p class="footer-note">
+        Data provided by NOAA Space Weather Prediction Center
+    </p>
+
 </footer>
-<script src="script.js?v=5"></script>
-</body> </html>
+
+
+<script src="script.js"></script>
+
+</body>
+</html>
+
+
