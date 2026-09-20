@@ -334,6 +334,7 @@ opacity: 0.7;
 }
 
 /* Keep the author area and title separated on mobile */
+/* MOBILE */
 @media (max-width: 600px) {
 
     .site-header {
@@ -341,38 +342,72 @@ opacity: 0.7;
     }
 
     .header-content {
-        padding-top: 0;
+        position: relative;
     }
 
     .author-info {
         position: absolute;
-        top: 12px;
-        left: 16px;
+        top: 10px;
+        left: 0;
 
-        font-size: 0.72rem;
-        line-height: 1.2;
         gap: 2px;
+        font-size: 11px;
+        line-height: 1.2;
     }
 
     .author-info > strong:first-child {
-        font-size: 0.82rem;
+        font-size: 13px;
     }
 
-    .header-content h1 {
-        font-size: 1.55rem;
+    h1 {
+        font-size: 25px;
         line-height: 1.15;
-        margin-bottom: 8px;
+        letter-spacing: 0.05em;
     }
 
-    .header-content .subtitle {
-        font-size: 0.78rem;
-        line-height: 1.3;
-        margin-bottom: 12px;
+    .subtitle {
+        margin: 8px 0 14px;
+        font-size: 12px;
+        line-height: 1.35;
     }
 
     .connection {
-        font-size: 0.72rem;
-        flex-wrap: wrap;
-        justify-content: center;
+        gap: 6px;
+        font-size: 11px;
+    }
+
+    .container {
+        width: calc(100% - 20px);
+        margin-top: 18px;
+    }
+
+    .panel {
+        padding: 16px;
+    }
+
+    .kp-display {
+        gap: 15px;
+    }
+
+    .kp-value {
+        min-width: 85px;
+        font-size: 44px;
+    }
+
+    .kp-description {
+        font-size: 18px;
+    }
+
+    .kp-scale {
+        gap: 3px;
+    }
+
+    .kp-scale span {
+        font-size: 10px;
+        padding: 7px 2px;
+    }
+
+    .metric-time {
+        font-size: 10px;
     }
 }
