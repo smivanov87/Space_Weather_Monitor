@@ -170,45 +170,98 @@
         </div>
     </div>
 
-    <div class="metrics">
+<div class="metrics">
 
-        <div class="metric-card">
-            <div class="metric-label">Dst Index</div>
+    <div class="metric-card">
+        <div class="metric-label">Dst Index</div>
 
-            <div class="metric-value">
-                <span id="dst">--</span>
-                <span class="metric-unit">nT</span>
-            </div>
-
-            <div id="dst-status" class="metric-status">--</div>
-            <div id="dst-time" class="metric-time">--</div>
+        <div class="metric-value">
+            <span id="dst-value">--</span>
+            <span class="metric-unit">nT</span>
         </div>
 
-        <div class="metric-card">
-            <div class="metric-label">Thermal Pressure</div>
-
-            <div class="metric-value">
-                <span id="thermal-pressure">--</span>
-                <span class="metric-unit">nPa</span>
-            </div>
-
-            <div id="thermal-pressure-status" class="metric-status">Calculated</div>
-            <div id="thermal-pressure-time" class="metric-time">--</div>
+        <div class="metric-status" id="dst-status">
+            Waiting for data
         </div>
 
-        <div class="metric-card">
-            <div class="metric-label">Plasma Beta</div>
-
-            <div class="metric-value">
-                <span id="plasma-beta">--</span>
-            </div>
-
-            <div id="plasma-beta-status" class="metric-status">Calculated</div>
-            <div id="plasma-beta-time" class="metric-time">--</div>
+        <div class="metric-time" id="dst-time">
+            Measurement: --
         </div>
-
     </div>
 
+
+    <div class="metric-card">
+        <div class="metric-label">Thermal Pressure</div>
+
+        <div class="metric-value">
+            <span id="thermal-pressure-value">--</span>
+            <span class="metric-unit">nPa</span>
+        </div>
+
+        <div class="metric-status">
+            P<sub>th</sub> = n k<sub>B</sub> T
+        </div>
+
+        <div class="metric-time" id="thermal-pressure-time">
+            Measurement: --
+        </div>
+    </div>
+
+
+    <div class="metric-card">
+        <div class="metric-label">Magnetic Pressure</div>
+
+        <div class="metric-value">
+            <span id="magnetic-pressure-value">--</span>
+            <span class="metric-unit">nPa</span>
+        </div>
+
+        <div class="metric-status">
+            P<sub>B</sub> = B<sup>2</sup> / (2 μ<sub>0</sub>)
+        </div>
+
+        <div class="metric-time" id="magnetic-pressure-time">
+            Measurement: --
+        </div>
+    </div>
+
+
+    <div class="metric-card">
+        <div class="metric-label">Dynamic Pressure</div>
+
+        <div class="metric-value">
+            <span id="dynamic-pressure-value">--</span>
+            <span class="metric-unit">nPa</span>
+        </div>
+
+        <div class="metric-status">
+            P<sub>dyn</sub> = n m<sub>p</sub> v<sup>2</sup>
+        </div>
+
+        <div class="metric-time" id="dynamic-pressure-time">
+            Measurement: --
+        </div>
+    </div>
+
+
+    <div class="metric-card">
+        <div class="metric-label">Plasma Beta</div>
+
+        <div class="metric-value">
+            <span id="plasma-beta-value">--</span>
+        </div>
+
+        <div class="metric-status">
+            β = P<sub>th</sub> / P<sub>B</sub>
+        </div>
+
+        <div class="metric-time" id="plasma-beta-time">
+            Measurement: --
+        </div>
+    </div>
+
+</div>
+    
 </section>
     
 <!-- GEOMAGNETIC ACTIVITY -->
