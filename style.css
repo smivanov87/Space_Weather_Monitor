@@ -298,30 +298,53 @@ opacity: 0.7;
 }
 }
 
-/* Author information - top left */ 
-.author-info { 
-    position: absolute; 
-    top: 18px; 
-    left: 24px; 
-    
-    display: flex; 
-    flex-direction: column; 
-    align-items: flex-start; 
-    
-    gap: 4px; 
-    text-align: left; 
-    font-size: 0.85rem; 
-    line-height: 1.3; 
-    z-index: 10; 
-} 
-.author-info strong:first-child { 
-    font-size: 1rem; 
-} 
+/* HEADER AUTHOR INFORMATION */
+.header-content {
+    position: relative;
+    padding-top: 105px;
+}
 
-.author-info a { 
-    color: inherit; 
-    text-decoration: none; 
-} 
-.author-info a:hover { 
-    text-decoration: underline; 
+.author-info {
+    position: absolute;
+    top: 18px;
+    left: 24px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+
+    text-align: left;
+    font-size: 0.85rem;
+    line-height: 1.3;
+    z-index: 10;
+}
+
+.author-info > strong:first-child {
+    font-size: 1rem;
+}
+
+.author-info a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.author-info a:hover {
+    text-decoration: underline;
+}
+
+/* Keep the author area and title separated on mobile */
+@media (max-width: 600px) {
+    .site-header {
+        padding: 125px 16px 26px;
+    }
+
+    .header-content {
+        padding-top: 0;
+    }
+
+    .author-info {
+        left: 16px;
+        top: 14px;
+    }
 }
