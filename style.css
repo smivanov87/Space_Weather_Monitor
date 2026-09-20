@@ -32,7 +32,7 @@ body {
 /* HEADER */
 
 .site-header {
-    padding: 125px 20px 34px;
+    padding: 78px 20px 28px;
     text-align: center;
 
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -103,7 +103,7 @@ h1 {
 .author-info {
     position: absolute;
 
-    top: -105px;
+    top: -62px;
     left: 0;
 
     display: flex;
@@ -378,7 +378,7 @@ footer p {
 @media (max-width: 600px) {
 
     .site-header {
-        padding: 105px 16px 24px;
+        padding: 82px 16px 22px;
     }
 
     .header-content {
@@ -388,7 +388,7 @@ footer p {
     /* AUTHOR */
 
     .author-info {
-        top: -92px;
+        top: -68px;
         left: 0;
 
         gap: 2px;
