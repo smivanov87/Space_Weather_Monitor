@@ -456,3 +456,22 @@ footer p {
         font-size: 10px;
     }
 }
+
+/* FORMULAS */
+
+.formula {
+    margin: -4px 0 14px;
+
+    color: #9da9c3;
+
+    font-size: 13px;
+    line-height: 1.4;
+
+    font-family:
+        "Times New Roman",
+        Times,
+        serif;
+
+    font-style: italic;
+}
+
