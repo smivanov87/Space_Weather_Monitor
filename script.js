@@ -7,13 +7,30 @@ const API = {
     dst: "https://services.swpc.noaa.gov/products/kyoto-dst.json"
 };
 
+
+/* =========================
+   CONSTANTS
+========================= */
+
+const kB = 1.380649e-23;       // Boltzmann constant, J/K
+const mu0 = 4 * Math.PI * 1e-7; // Vacuum permeability, H/m
+const mp = 1.67262192369e-27;  // Proton mass, kg
+
+
+/* =========================
+   HELPERS
+========================= */
+
 function $(id) {
     return document.getElementById(id);
 }
 
 function setText(id, value) {
     const element = $(id);
-    if (element) element.textContent = value;
+
+    if (element) {
+        element.textContent = value;
+    }
 }
 
 function setConnection(online, message) {
@@ -43,6 +60,7 @@ function showError(message) {
 
 function hideError() {
     const error = $("error-message");
+
     if (error) {
         error.hidden = true;
     }
@@ -130,16 +148,13 @@ function newestRecord(data) {
         return null;
     }
 
-    return records.reduce((latest, row) => {
-        if (!latest) {
-            return row;
-        }
+    records.sort(
+        (a, b) =>
+            new Date(b.time_tag).getTime() -
+            new Date(a.time_tag).getTime()
+    );
 
-        return new Date(row.time_tag).getTime() >
-            new Date(latest.time_tag).getTime()
-            ? row
-            : latest;
-    }, null);
+    return records[0];
 }
 
 
@@ -147,14 +162,17 @@ function newestRecord(data) {
    SOLAR WIND
 ========================= */
 
-function displaySolarWind(wind) {
-    if (!wind) {
+async function updateSolarWind() {
+    const data = await fetchJSON(API.wind);
+    const latest = newestRecord(data);
+
+    if (!latest) {
         throw new Error("No solar-wind data.");
     }
 
-    const speed = Number(wind.proton_speed);
-    const density = Number(wind.proton_density);
-    const temperature = Number(wind.proton_temperature);
+    const speed = Number(latest.proton_speed);
+    const density = Number(latest.proton_density);
+    const temperature = Number(latest.proton_temperature);
 
     setText(
         "solar-wind-speed",
@@ -205,11 +223,13 @@ function displaySolarWind(wind) {
     );
 
     const timestamp =
-        formatMeasurementTime(wind.time_tag);
+        formatMeasurementTime(latest.time_tag);
 
     setText("speed-time", timestamp);
     setText("density-time", timestamp);
     setText("temperature-time", timestamp);
+
+    return latest;
 }
 
 
@@ -217,15 +237,18 @@ function displaySolarWind(wind) {
    MAGNETIC FIELD
 ========================= */
 
-function displayMagneticField(magnetic) {
-    if (!magnetic) {
+async function updateMagneticField() {
+    const data = await fetchJSON(API.magnetic);
+    const latest = newestRecord(data);
+
+    if (!latest) {
         throw new Error("No magnetic-field data.");
     }
 
-    const bx = Number(magnetic.bx_gsm);
-    const by = Number(magnetic.by_gsm);
-    const bz = Number(magnetic.bz_gsm);
-    const bt = Number(magnetic.bt);
+    const bx = Number(latest.bx_gsm);
+    const by = Number(latest.by_gsm);
+    const bz = Number(latest.bz_gsm);
+    const bt = Number(latest.bt);
 
     setText("bx", formatNumber(bx, 1));
     setText("by", formatNumber(by, 1));
@@ -252,19 +275,33 @@ function displayMagneticField(magnetic) {
     }
 
     const timestamp =
-        formatMeasurementTime(magnetic.time_tag);
+        formatMeasurementTime(latest.time_tag);
 
     setText("bx-time", timestamp);
     setText("by-time", timestamp);
     setText("bz-time", timestamp);
     setText("bt-time", timestamp);
     setText("clock-angle-time", timestamp);
+
+    return latest;
 }
 
 
 /* =========================
-   THERMAL PRESSURE
+   PLASMA CALCULATIONS
 ========================= */
+
+/*
+    THERMAL PRESSURE
+
+    P_th = n k_B T
+
+    n  = proton density in m^-3
+    kB = Boltzmann constant
+    T  = proton temperature in K
+
+    Result: nPa
+*/
 
 function calculateThermalPressure(
     densityCm3,
@@ -280,82 +317,163 @@ function calculateThermalPressure(
         return NaN;
     }
 
-    /*
-       P = n k T
-
-       n: proton density in cm^-3
-       T: proton temperature in K
-       result: nPa
-    */
-
+    // cm^-3 -> m^-3
     const densityM3 =
         density * 1e6;
-
-    const kB =
-        1.380649e-23;
 
     const pressurePa =
         densityM3 *
         kB *
         temperature;
 
+    // Pa -> nPa
     return pressurePa * 1e9;
 }
 
 
-/* =========================
-   PLASMA BETA
-========================= */
+/*
+    MAGNETIC PRESSURE
 
-function calculatePlasmaBeta(
-    thermalPressureNpa,
+    P_B = B² / (2 μ0)
+
+    B  = total IMF magnitude in Tesla
+    μ0 = vacuum permeability
+
+    Result: nPa
+*/
+
+function calculateMagneticPressure(
     magneticFieldNt
 ) {
-    const thermalPressure =
-        Number(thermalPressureNpa);
-
     const magneticField =
         Number(magneticFieldNt);
 
     if (
-        !Number.isFinite(thermalPressure) ||
         !Number.isFinite(magneticField) ||
-        magneticField <= 0
+        magneticField < 0
     ) {
         return NaN;
     }
 
-    /*
-       Plasma beta = thermal pressure /
-                     magnetic pressure
-
-       Magnetic pressure:
-       P_B = B² / (2 μ0)
-    */
-
-    const mu0 =
-        4 * Math.PI * 1e-7;
-
+    // nT -> T
     const magneticFieldTesla =
         magneticField * 1e-9;
 
-    const magneticPressurePa =
+    const pressurePa =
         (magneticFieldTesla ** 2) /
         (2 * mu0);
 
-    const magneticPressureNpa =
-        magneticPressurePa * 1e9;
+    // Pa -> nPa
+    return pressurePa * 1e9;
+}
+
+
+/*
+    DYNAMIC PRESSURE
+
+    P_dyn = n m_p v²
+
+    n  = proton density in m^-3
+    mp = proton mass
+    v  = solar-wind speed in m/s
+
+    Result: nPa
+*/
+
+function calculateDynamicPressure(
+    densityCm3,
+    speedKmS
+) {
+    const density =
+        Number(densityCm3);
+
+    const speed =
+        Number(speedKmS);
+
+    if (
+        !Number.isFinite(density) ||
+        !Number.isFinite(speed)
+    ) {
+        return NaN;
+    }
+
+    // cm^-3 -> m^-3
+    const densityM3 =
+        density * 1e6;
+
+    // km/s -> m/s
+    const speedMs =
+        speed * 1000;
+
+    const pressurePa =
+        densityM3 *
+        mp *
+        speedMs ** 2;
+
+    // Pa -> nPa
+    return pressurePa * 1e9;
+}
+
+
+/*
+    PLASMA BETA
+
+    β = P_th / P_B
+
+    Dimensionless.
+*/
+
+function calculatePlasmaBeta(
+    thermalPressureNpa,
+    magneticPressureNpa
+) {
+    const thermalPressure =
+        Number(thermalPressureNpa);
+
+    const magneticPressure =
+        Number(magneticPressureNpa);
+
+    if (
+        !Number.isFinite(thermalPressure) ||
+        !Number.isFinite(magneticPressure) ||
+        magneticPressure <= 0
+    ) {
+        return NaN;
+    }
 
     return (
         thermalPressure /
-        magneticPressureNpa
+        magneticPressure
     );
 }
 
-function displayPlasma(wind, magnetic) {
-    if (!wind || !magnetic) {
+
+/* =========================
+   UPDATE PLASMA
+========================= */
+
+async function updatePlasma() {
+    const [windData, magneticData] =
+        await Promise.all([
+            fetchJSON(API.wind),
+            fetchJSON(API.magnetic)
+        ]);
+
+    const wind =
+        newestRecord(windData);
+
+    const magnetic =
+        newestRecord(magneticData);
+
+    if (!wind) {
         throw new Error(
-            "Solar-wind or magnetic data unavailable."
+            "No solar-wind data for plasma calculation."
+        );
+    }
+
+    if (!magnetic) {
+        throw new Error(
+            "No magnetic data for plasma calculation."
         );
     }
 
@@ -365,8 +483,16 @@ function displayPlasma(wind, magnetic) {
     const temperature =
         Number(wind.proton_temperature);
 
+    const speed =
+        Number(wind.proton_speed);
+
     const bt =
         Number(magnetic.bt);
+
+
+    /* =========================
+       CALCULATE PRESSURES
+    ========================= */
 
     const thermalPressure =
         calculateThermalPressure(
@@ -374,49 +500,150 @@ function displayPlasma(wind, magnetic) {
             temperature
         );
 
-    const plasmaBeta =
-        calculatePlasmaBeta(
-            thermalPressure,
+    const magneticPressure =
+        calculateMagneticPressure(
             bt
         );
 
+    const dynamicPressure =
+        calculateDynamicPressure(
+            density,
+            speed
+        );
+
+    const plasmaBeta =
+        calculatePlasmaBeta(
+            thermalPressure,
+            magneticPressure
+        );
+
+
+    /* =========================
+       DISPLAY VALUES
+    ========================= */
+
     setText(
         "thermal-pressure",
-        formatNumber(thermalPressure, 2)
+        formatNumber(
+            thermalPressure,
+            2
+        )
+    );
+
+    setText(
+        "magnetic-pressure",
+        formatNumber(
+            magneticPressure,
+            2
+        )
+    );
+
+    setText(
+        "dynamic-pressure",
+        formatNumber(
+            dynamicPressure,
+            2
+        )
     );
 
     setText(
         "plasma-beta",
-        formatNumber(plasmaBeta, 2)
+        formatNumber(
+            plasmaBeta,
+            2
+        )
     );
+
+
+    /* =========================
+       DISPLAY STATUS
+    ========================= */
 
     setText(
         "thermal-pressure-status",
-        "Calculated"
+        Number.isFinite(thermalPressure)
+            ? "Calculated"
+            : "--"
+    );
+
+    setText(
+        "magnetic-pressure-status",
+        Number.isFinite(magneticPressure)
+            ? "Calculated"
+            : "--"
+    );
+
+    setText(
+        "dynamic-pressure-status",
+        Number.isFinite(dynamicPressure)
+            ? "Calculated"
+            : "--"
     );
 
     setText(
         "plasma-beta-status",
-        "Calculated"
+        Number.isFinite(plasmaBeta)
+            ? "Calculated"
+            : "--"
     );
 
-    /*
-       The calculations use the solar-wind
-       measurement timestamp.
-    */
 
-    const timestamp =
-        formatMeasurementTime(wind.time_tag);
+    /* =========================
+       MEASUREMENT TIMES
+    ========================= */
 
     setText(
         "thermal-pressure-time",
-        timestamp
+        formatMeasurementTime(
+            wind.time_tag
+        )
     );
 
     setText(
-        "plasma-beta-time",
-        timestamp
+        "dynamic-pressure-time",
+        formatMeasurementTime(
+            wind.time_tag
+        )
     );
+
+    setText(
+        "magnetic-pressure-time",
+        formatMeasurementTime(
+            magnetic.time_tag
+        )
+    );
+
+    /*
+        Plasma beta depends on both
+        thermal pressure and magnetic pressure.
+
+        Therefore use the later of the
+        two source measurements.
+    */
+
+    const windDate =
+        new Date(wind.time_tag);
+
+    const magneticDate =
+        new Date(magnetic.time_tag);
+
+    const betaDate =
+        windDate >= magneticDate
+            ? windDate
+            : magneticDate;
+
+    setText(
+        "plasma-beta-time",
+        formatMeasurementTime(
+            betaDate.toISOString()
+        )
+    );
+
+
+    return {
+        windTime: wind.time_tag,
+        magneticTime: magnetic.time_tag
+    };
 }
 
 
@@ -424,7 +651,10 @@ function displayPlasma(wind, magnetic) {
    KP
 ========================= */
 
-function displayKp(data) {
+async function updateKp() {
+    const data =
+        await fetchJSON(API.kp);
+
     if (!Array.isArray(data)) {
         throw new Error("No Kp data.");
     }
@@ -435,13 +665,19 @@ function displayKp(data) {
                 row &&
                 row.time_tag &&
                 row.Kp !== undefined
+        )
+        .sort(
+            (a, b) =>
+                new Date(b.time_tag).getTime() -
+                new Date(a.time_tag).getTime()
         );
 
-    const latest =
-        newestRecord(rows);
+    const latest = rows[0];
 
     if (!latest) {
-        throw new Error("No valid Kp data.");
+        throw new Error(
+            "No valid Kp data."
+        );
     }
 
     const kp =
@@ -488,23 +724,33 @@ function displayKp(data) {
    DST
 ========================= */
 
-function displayDst(data) {
+async function updateDst() {
+    const data =
+        await fetchJSON(API.dst);
+
     if (!Array.isArray(data)) {
         throw new Error("No Dst data.");
     }
 
-    const rows = data.filter(
-        row =>
-            row &&
-            row.time_tag &&
-            row.dst !== undefined
-    );
+    const rows = data
+        .filter(
+            row =>
+                row &&
+                row.time_tag &&
+                row.dst !== undefined
+        )
+        .sort(
+            (a, b) =>
+                new Date(b.time_tag).getTime() -
+                new Date(a.time_tag).getTime()
+        );
 
-    const latest =
-        newestRecord(rows);
+    const latest = rows[0];
 
     if (!latest) {
-        throw new Error("No valid Dst data.");
+        throw new Error(
+            "No valid Dst data."
+        );
     }
 
     const dst =
@@ -517,16 +763,31 @@ function displayDst(data) {
 
     if (Number.isFinite(dst)) {
         if (dst > -30) {
-            setText("dst-status", "Quiet");
+            setText(
+                "dst-status",
+                "Quiet"
+            );
         } else if (dst > -50) {
-            setText("dst-status", "Disturbed");
+            setText(
+                "dst-status",
+                "Disturbed"
+            );
         } else if (dst > -100) {
-            setText("dst-status", "Storm");
+            setText(
+                "dst-status",
+                "Storm"
+            );
         } else {
-            setText("dst-status", "Strong storm");
+            setText(
+                "dst-status",
+                "Strong storm"
+            );
         }
     } else {
-        setText("dst-status", "--");
+        setText(
+            "dst-status",
+            "--"
+        );
     }
 
     setText(
@@ -543,51 +804,38 @@ function displayDst(data) {
 ========================= */
 
 async function updateAll() {
-    setConnection(false, "Updating...");
+    setConnection(
+        false,
+        "Updating..."
+    );
+
     hideError();
 
     const refreshTime =
         new Date();
 
-    try {
-        /*
-           Fetch each NOAA feed only once.
-        */
-
-        const [
-            windData,
-            magneticData,
-            kpData,
-            dstData
-        ] = await Promise.all([
-            fetchJSON(API.wind),
-            fetchJSON(API.magnetic),
-            fetchJSON(API.kp),
-            fetchJSON(API.dst)
+    const results =
+        await Promise.allSettled([
+            updateSolarWind(),
+            updateMagneticField(),
+            updatePlasma(),
+            updateKp(),
+            updateDst()
         ]);
 
-        const wind =
-            newestRecord(windData);
-
-        const magnetic =
-            newestRecord(magneticData);
-
-        /*
-           Update all dashboard sections
-           from the same downloaded data.
-        */
-
-        displaySolarWind(wind);
-        displayMagneticField(magnetic);
-        displayPlasma(wind, magnetic);
-        displayKp(kpData);
-        displayDst(dstData);
-
-        setText(
-            "last-update",
-            `Last update: ${formatLastUpdate(refreshTime)}`
+    const failures =
+        results.filter(
+            result =>
+                result.status ===
+                "rejected"
         );
 
+    setText(
+        "last-update",
+        `Last update: ${formatLastUpdate(refreshTime)}`
+    );
+
+    if (failures.length === 0) {
         setConnection(
             true,
             "Connected"
@@ -596,25 +844,14 @@ async function updateAll() {
         console.log(
             "Space Weather data updated successfully."
         );
-
-    } catch (error) {
-        console.error(
-            "Space Weather update failed:",
-            error
-        );
-
+    } else {
         setConnection(
             false,
-            "Data unavailable"
+            "Partial data"
         );
 
         showError(
-            `NOAA data update failed: ${error.message}`
-        );
-
-        setText(
-            "last-update",
-            `Last update: ${formatLastUpdate(refreshTime)}`
+            `${failures.length} NOAA data source(s) unavailable.`
         );
     }
 }
@@ -634,7 +871,8 @@ function start() {
 }
 
 if (
-    document.readyState === "loading"
+    document.readyState ===
+    "loading"
 ) {
     document.addEventListener(
         "DOMContentLoaded",
@@ -643,3 +881,4 @@ if (
 } else {
     start();
 }
+
