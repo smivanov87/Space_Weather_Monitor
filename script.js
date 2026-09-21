@@ -526,7 +526,7 @@ async function updatePlasma() {
         "thermal-pressure",
         formatNumber(
             thermalPressure,
-            2
+            3
         )
     );
 
@@ -534,7 +534,7 @@ async function updatePlasma() {
         "magnetic-pressure",
         formatNumber(
             magneticPressure,
-            2
+            3
         )
     );
 
