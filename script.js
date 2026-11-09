@@ -796,10 +796,13 @@ async function updateDst() {
             latest.time_tag
         )
     ); */
-    setText(
-        "dst-time",
-            latest.time_tag
-    ); 
+   setText(
+    "dst-time",
+    formatMeasurementTime(
+        latest.time_tag,
+        true
+    )
+);
 }
 
 
