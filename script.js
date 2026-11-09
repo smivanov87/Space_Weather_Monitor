@@ -790,12 +790,16 @@ async function updateDst() {
         );
     }
 
-    setText(
+ /*   setText(
         "dst-time",
         formatMeasurementTime(
             latest.time_tag
         )
-    );
+    ); */
+    setText(
+        "dst-time",
+            latest.time_tag
+    ); 
 }
 
 
