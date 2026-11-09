@@ -798,10 +798,7 @@ async function updateDst() {
     ); */
    setText(
     "dst-time",
-    formatMeasurementTime(
-        latest.time_tag,
-        true
-    )
+    formatMeasurementTime(latest.time_tag)
 );
 }
 
