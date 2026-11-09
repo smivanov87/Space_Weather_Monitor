@@ -796,14 +796,11 @@ async function updateDst() {
             latest.time_tag
         )
     ); */
-   setText(
-    "dst-time",
-    formatMeasurementTime(
-        new Date(
-            new Date(latest.time_tag + "Z").getTime() + 3600000
-        ).toISOString()
-    )
-);
+    
+    setText(
+     "dst-time",
+        formatMeasurementTime(latest.time_tag)
+    ); 
 }
 
 
